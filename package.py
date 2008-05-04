@@ -49,7 +49,7 @@ def export_repo(options):
 def build_api_docs(src_dir, options):
     api_dir = tempfile.mkdtemp()
     args = ["epydoc", "--output=%s" % api_dir, "--simple-term",
-        "--show-imports", "--graph=umlclasstree", "--dotpath=/usr/local/bin/dot",
+        "--show-imports", "--graph=umlclasstree", "--dotpath=/usr/bin/dot",
         "--name=%s API Documentation" % options.name, "--exclude=tests*",
         os.path.join(src_dir, options.package)]
 
