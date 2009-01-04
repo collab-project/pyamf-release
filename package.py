@@ -43,10 +43,10 @@ def export_svn(url, options):
 def export_repo(options):
     repo_url = '%s/%s' % (options.baseurl, options.branch)
 
-    if options.repo == 'svn':
+    if options.repository == 'svn':
         retcode, cmd, export_dir = export_svn(repo_url, options)
     else:
-        raise ValueError, "Unknown repo type %s" % options.repo
+        raise ValueError, "Unknown repository type %s" % options.repository
 
     if retcode != 0:
         raise RuntimeError, "Problem exporting repository"
@@ -101,16 +101,21 @@ def parse_args():
 
     parser = OptionParser()
 
-    parser.add_option('--baseurl', dest='baseurl')
-    parser.add_option('--branch', dest='branch', default='trunk')
-    parser.add_option('--version', dest='version')
+    parser.add_option('--baseurl', dest='baseurl',
+                      help='Root URL of the source control system')
+    parser.add_option('--branch', dest='branch', default='trunk',
+                      help='Name of the target folder in the source control system [default: %default]')
+    parser.add_option('--version', dest='version',
+                      help='The version number of the project')
     parser.add_option('--name', dest='name', help='The name of the project')
     parser.add_option('--username', dest='username', default=None,
-                                    help='Username to access the repo')
+                                    help='Username to access the repository')
     parser.add_option('--password', dest='password', default=None,
-                                    help='Password to access the repo')
-    parser.add_option('--repo', dest='repo', default='svn')
-    parser.add_option('--dotpath', dest='dotpath', default='/usr/bin/dot')
+                                    help='Password to access the repository')
+    parser.add_option('--repository', dest='repository', default='svn',
+                       help='Source control system type [default: %default]')
+    parser.add_option('--dotpath', dest='dotpath', default='/usr/bin/dot',
+                      help="Location of the Graphviz 'dot' executable [default: %default]")
     
     return parser.parse_args()
 
@@ -210,7 +215,7 @@ if __name__ == '__main__':
     options, args = parse_args()
 
     if options.baseurl is None:
-        raise ValueError, "baseurl arg is required"
+        raise ValueError, "baseurl is required"
     if options.name is None:
         raise ValueError, "project name is required"
     if options.version is None:
@@ -225,11 +230,11 @@ if __name__ == '__main__':
     archives = build_dir[1:]
     build_dir = build_dir[0]
 
-    print '=' * 80
+    print '=' * 70
     for archive in archives:
         print '%s  ./%s' % (md5(archive), os.path.basename(archive))
         shutil.copy(os.path.join(build_dir, archive), cwd)
-    print '=' * 80
+    print '=' * 70
     
     shutil.rmtree(export_dir)
     shutil.rmtree(build_dir)
