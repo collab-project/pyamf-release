@@ -57,7 +57,7 @@ def build_ext(src_dir):
     cwd = os.getcwd()
     os.chdir(src_dir)
     
-    args = ["python", "setup.py", "build"]
+    args = ["python", "setup.py", "build_ext"]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
@@ -74,9 +74,8 @@ def build_api_docs(src_dir, options):
     api_dir = tempfile.mkdtemp()
     
     args = ["epydoc", "--config=" +
-        os.path.join(src_dir, "setup.cfg"),
-        "--graph=umlclasstree", "--dotpath=" + options.dotpath,
-        "-v"]
+        os.path.join(src_dir, "setup.cfg"), "-v",
+        "--graph=umlclasstree", "--dotpath=" + options.dotpath]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
