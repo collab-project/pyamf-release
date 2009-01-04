@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python
 
 # Copyright (c) 2007-2009 The PyAMF Project.
 # See LICENSE for details.
@@ -57,7 +57,7 @@ def build_ext(src_dir):
     cwd = os.getcwd()
     os.chdir(src_dir)
     
-    args = ["python", "setup.py", "build_ext"]
+    args = ["python", "setup.py", "develop"]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
