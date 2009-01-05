@@ -183,6 +183,7 @@ def package_project(src_dir, api_dir, options):
     build_dir = tempfile.mkdtemp()
     package_dir = os.path.join(build_dir, '%s-%s' % (options.name, options.version))
     shutil.rmtree(os.path.join(src_dir, 'build'))
+    shutil.rmtree(os.path.join(src_dir, '%s.egg-info' % options.name))
     shutil.copytree(src_dir, package_dir)
     shutil.copytree(api_dir, os.path.join(package_dir, 'doc', 'api'))
     
