@@ -73,9 +73,18 @@ def build_api_docs(src_dir, options):
     
     api_dir = tempfile.mkdtemp()
     
+    # generate html doc from rst file
+    args = ["rst2html.py", os.path.join(src_dir, "CHANGES.txt"),
+            os.path.join(api_dir, "changes.html")]
+    
+    cmd = subprocess.Popen(args)
+    retcode = cmd.wait()
+    
+    # generate API documentation
     args = ["epydoc", "--config=" +
         os.path.join(src_dir, "setup.cfg"), "-v",
-        "--graph=umlclasstree", "--dotpath=" + options.dotpath]
+        "--graph=umlclasstree", "--dotpath=" + options.dotpath,
+        "--help-file=" + os.path.join(api_dir, "changes.html")]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
