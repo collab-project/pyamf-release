@@ -8,7 +8,7 @@ A basic release builder.
 
 Example usage:
   python package.py --version=0.3 --name=PyAMF --baseurl=http://svn.pyamf.org/pyamf/tags --branch=release-0.3
-  
+
 For more help try:
   python package.py --help
 """
@@ -20,7 +20,7 @@ import hashlib
 def export_svn(url, options):
     print
     print 'Checking out: %s\n' % url
-    
+
     args = ['svn', 'export']
 
     args.append(url)
@@ -50,41 +50,39 @@ def export_repo(options):
 
     if retcode != 0:
         raise RuntimeError, "Problem exporting repository"
-    
+
     return export_dir
-        
+
 def build_ext(src_dir):
     cwd = os.getcwd()
     os.chdir(src_dir)
-    
+
     args = ["python", "setup.py", "develop"]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
-    
+
     if retcode != 0:
         raise RuntimeError, "Error building extension"
-    
+
     os.chdir(cwd)
-    
-def build_api_docs(src_dir, options):
+
+def build_api_docs(src_dir, doc_dir, options):
     # create .so files for epydoc
     build_ext(export_dir)
-    
-    api_dir = tempfile.mkdtemp()
-    
+
     # generate html doc from rst file
     args = ["rst2html.py", os.path.join(src_dir, "CHANGES.txt"),
-            os.path.join(api_dir, "changes.html")]
-    
+            os.path.join(doc_dir, "changes.html")]
+
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
-    
+
     # generate API documentation
     args = ["epydoc", "--config=" +
         os.path.join(src_dir, "setup.cfg"), "-v",
         "--graph=umlclasstree", "--dotpath=" + options.dotpath,
-        "--help-file=" + os.path.join(api_dir, "changes.html")]
+        "--help-file=" + os.path.join(doc_dir, "changes.html")]
 
     cmd = subprocess.Popen(args)
     retcode = cmd.wait()
@@ -96,11 +94,32 @@ def build_api_docs(src_dir, options):
     # so copy the files and get rid of the old default
     # output destination folder
     temp_doc = os.path.join(os.getcwd(), "docs")
-    api_dir = os.path.join(api_dir, "docs")
-    shutil.copytree(temp_doc, api_dir)
+    shutil.copytree(temp_doc, os.path.join(doc_dir, "api"))
     shutil.rmtree(temp_doc)
-    
-    return api_dir
+
+
+def build_docs(options):
+    # create .so files for epydoc
+    doc_url = 'https://svn.pyamf.org/doc/tags/release-%s' % (options.version)
+    retcode, cmd, export_dir = export_svn(doc_url, options)
+
+    args = ["make", "html"]
+
+    if retcode != 0:
+        raise RuntimeError, "Problem exporting repository"
+
+    cmd = subprocess.Popen(args, cwd=export_dir)
+    retcode = cmd.wait()
+
+    if retcode != 0:
+        raise RuntimeError, "Error building docs"
+
+    doc_dir = tempfile.mkdtemp()
+    shutil.rmtree(doc_dir)
+    temp_doc = os.path.join(export_dir, "_build", 'html')
+    shutil.copytree(temp_doc, doc_dir)
+
+    return doc_dir
 
 def parse_args():
     def parse_targets(option, opt, value, parser):
@@ -125,7 +144,7 @@ def parse_args():
                        help='Source control system type [default: %default]')
     parser.add_option('--dotpath', dest='dotpath', default='/usr/bin/dot',
                       help="Location of the Graphviz 'dot' executable [default: %default]")
-    
+
     return parser.parse_args()
 
 def build_zip(build_dir, options):
@@ -185,7 +204,7 @@ def clean_package_dir(package_dir):
             if f.endswith('.pyc') or f.endswith('.so'):
                 os.unlink(os.path.join(files[0], f))
 
-def package_project(src_dir, api_dir, options):
+def package_project(src_dir, doc_dir, options):
     """
     Builds tar.gz, tar.bz2, zip from the src_dir's
     """
@@ -194,8 +213,8 @@ def package_project(src_dir, api_dir, options):
     shutil.rmtree(os.path.join(src_dir, 'build'))
     shutil.rmtree(os.path.join(src_dir, '%s.egg-info' % options.name))
     shutil.copytree(src_dir, package_dir)
-    shutil.copytree(api_dir, os.path.join(package_dir, 'doc', 'api'))
-    
+    shutil.copytree(doc_dir, os.path.join(package_dir, 'doc'))
+
     clean_package_dir(package_dir)
 
     return build_dir, build_zip(build_dir, options), \
@@ -218,9 +237,9 @@ def md5(fileName, excludeLine="", includeLine=""):
             continue
         m.update(eachLine)
     m.update(includeLine)
-    
+
     return m.hexdigest()
-    
+
 if __name__ == '__main__':
     options, args = parse_args()
 
@@ -234,9 +253,10 @@ if __name__ == '__main__':
     cwd = os.getcwd()
     export_dir = export_repo(options)
     sys.path.insert(0, export_dir)
-    api_dir = build_api_docs(export_dir, options)
-    
-    build_dir = package_project(export_dir, api_dir, options)
+    doc_dir = build_docs(options)
+    build_api_docs(export_dir, doc_dir, options)
+
+    build_dir = package_project(export_dir, doc_dir, options)
     archives = build_dir[1:]
     build_dir = build_dir[0]
 
@@ -245,9 +265,9 @@ if __name__ == '__main__':
         print '%s  ./%s' % (md5(archive), os.path.basename(archive))
         shutil.copy(os.path.join(build_dir, archive), cwd)
     print '=' * 70
-    
+
     shutil.rmtree(export_dir)
     shutil.rmtree(build_dir)
     shutil.rmtree(os.path.dirname(api_dir))
-    
-    print '\n%s-%s ready.\n' % (options.name, options.version) 
+
+    print '\n%s-%s ready.\n' % (options.name, options.version)
