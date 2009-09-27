@@ -1,0 +1,6 @@
+pyamf (0.5.1-1) unstable; urgency=low
+
+  * Initial release Closes: #499617
+
+ -- Thijs Triemstra <thijs@pyamf.org>  Sun, 27 Sep 2009 16:18:28 +0200
+

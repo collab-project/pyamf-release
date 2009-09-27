@@ -1,0 +1,41 @@
+#!/usr/bin/make -f
+
+clean: 
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp
+	rm -rf dist build
+	-find . -name *\.py[co] -exec rm {} \;
+	-find . -name *\.so -exec rm {} \;
+	dh_clean
+
+build: build-stamp
+
+build-stamp:
+	dh_testdir
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_installdirs
+	python setup.py install \
+		--root=$(CURDIR)/debian/pyamf \
+		--single-version-externally-managed  
+
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_pycentral
+	dh_compress -X.py -X-hook
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary-arch: build install
+
+binary: binary-indep binary-arch
+
+.PHONY: build clean binary-indep binary-arch binary install configure
