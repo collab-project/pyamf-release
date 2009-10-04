@@ -45,9 +45,10 @@ def getInterpreter(os='unix', version='2.5'):
 
 class Builder(object):
     """
+    Builder.
     """
 
-    def __init__(self, name, slaveName, scm_step, os, **kwargs):
+    def __init__(self, name, slaveName, scm_step=None, os=None, **kwargs):
         """
         @param name: Name of the builder.
         @type name: C{str}
@@ -66,7 +67,7 @@ class Builder(object):
         self.command = []
         self.factory = BuildFactory()
 
-	print "Started builder on the '%s' bot for Python %s" % (slaveName, self.version)
+        print "Started builder on the '%s' bot for Python %s" % (slaveName, self.version)
 
 
     def start(self, **kwargs):
@@ -140,21 +141,39 @@ class Builder(object):
         return self.slave_step(**buildstep_kwargs)
 
 
-    def compress(self, file, **buildstep_kwargs):
+    def compress(self, src, dest, **buildstep_kwargs):
         """
         Compress a tar file with gzip encoding.
 
-        @param file: Name of the output tarball.
-        @type file: C{str}
+        @param src: Name of input folder.
+        @type src: C{str}
+        @param dest: Name of the output tarball.
+        @type dest: C{str}
 
         @return: A slave step.
         """
         self.type = ShellCommand
         self.stepName = 'Compressing %s' % file
         self.descriptionDone = 'Compressed %s' % file
-        self.command = ['tar', 'zcvf', file]
+        self.command = ['tar', 'zcvf', dest, src]
         
         return self.slave_step(**buildstep_kwargs)
+
+
+    def compile(self, ext=False, **buildstep_kwargs):
+        """
+        Build the code.
+        
+        @param ext: Enable C-extension build.
+        @type ext: C{bool}
+        """
+        self.type = Compile
+        self.ext = ext
+        self.stepName = 'Compiling code'
+        self.descriptionDone = 'Compiled code'
+        self.command = []
+
+        return self.setup_step('build', **buildstep_kwargs)
 
 
     def compile(self, ext=False, **buildstep_kwargs):
@@ -184,7 +203,7 @@ class Builder(object):
         self.ext = ext
         self.stepName = 'Running unit tests'
         self.descriptionDone = 'Completed unit tests'
-	self.command = []
+        self.command = []
         #step.evaluateCommand = evaluateCommand
 
         return self.setup_step('test', **buildstep_kwargs)
@@ -301,108 +320,3 @@ class Builder(object):
         """
         self.factory.addStep(self.scm)
 
-
-class GAECompile(ShellCommand):
-    """
-    Google App Engine buildstep.
-    """
-
-    def __init__(self, slaveScript=None, **kwargs):
-        """
-        @param slaveScript: Location of the buildslave script.
-        @type slaveScript: C{str}
-        """
-        self.name = 'google-app-engine'
-        self.descriptionDone = 'google-app-engine punit'
-        self.slaveScript = slaveScript
-
-        ShellCommand.__init__(self, **kwargs)
-
-        self.addFactoryArguments(slaveScript=slaveScript)
-
-    def start(self):
-        command = ['python2.5', self.slaveScript]
-
-        if self.getProperty('branch') is not None:
-            command.append(WithProperties('--branch=%(branch)s'))
-
-        self.setCommand(command)
-        ShellCommand.start(self)
-
-
-class GAEBuilder(object):
-    """
-    Google App Engine build factory.
-    """
-
-    def __init__(self, builder, slave, src):
-        """
-        @param builder: Builder name.
-        @type builder: C{str}
-        @param slave: Slave name.
-        @type slave: C{str}
-        @param src: Location of the buildslave script.
-        @type src: C{str}
-        """
-        self.builder = builder
-        self.slave = slave
-        self.script = src
-
-
-    def start(self):
-        """
-        Create and return the builder.
-        
-        @return: The Google App Engine builder.
-        @rtype: L{BuildFactory}
-        """
-        compile = GAECompile(slaveScript=self.script)
-
-        f = BuildFactory()
-        f.addStep(compile)
-
-        b = {'name': self.builder,
-             'slavename': self.slave,
-             'builddir': self.builder,
-             'factory': f,
-        }
-
-        return b
-
-
-def evaluateCommand(cmd):
-    r = Test.evaluateCommand(self, cmd)
-
-    if r is FAILURE:
-        return r
-
-    lines = self.getLog('stdio').readlines()
-
-    re_test_result = re.compile("FAILED \((failures=(\d*), )?(errors=(\d*), )?successes=(\d*)\)")
-
-    mos = map(lambda line: re_test_result.search(line), lines)
-    test_result_lines = [mo.groups() for mo in mos if mo]
-
-    if not test_result_lines:
-        return cmd.rc
-
-    results = test_result_lines[0]
-
-    failures = errors = passed = 0
-
-    if results[1] is not None:
-        failures = int(results[1])
-
-    if results[3] is not None:
-        errors = int(results[3])
-
-    passed = int(results[4])
-
-    if [failures, errors] == [0, 0]:
-        rc = SUCCESS
-    else:
-        rc = FAILURE
-
-    self.setTestResults(total=failures + errors + passed, failed=failures + errors, passed=passed)
-
-    return rc

@@ -3,8 +3,6 @@
 
 """
 Buildsteps for the PyAMF buildmaster.
-
-Requires installation of setuptools and buildbot >= 0.7.11.
 """
 
 
@@ -12,11 +10,12 @@ import os
 import glob
 
 from release.builds.util import Builder
+from release.builds.steps import GAECompile
 
 
 class AppBuilder(Builder):
     """
-    Builder for PyAMF.
+    Python builder for PyAMF.
     """
 
     def __init__(self, name, slaveName, scm, destFolder, webFolder,
@@ -60,6 +59,8 @@ class AppBuilder(Builder):
     def start(self, **kwargs):
         """
         Run the builder.
+        
+        @return: Add the buildsteps and return the builder dict.
         """
         # Name of gzipped tarball that contains the compiled egg that gets
         # uploaded from the slave to the master
@@ -67,16 +68,16 @@ class AppBuilder(Builder):
 
         # Checkout source code
         self.checkout()
-        
+
         # Download source to slave for SQLAlchemy 0.4.x and 0.5.x
         sa_tarball = 'sqlalchemy-%s.tar.gz'
         sa_path = os.path.join(self.saFolder, sa_tarball)
-        
+
         self.download(sa_path % self.sa04, sa_tarball % self.sa04)
         self.download(sa_path % self.sa05, sa_tarball % self.sa05)
         self.unpack_sqlalchemy(sa_tarball, self.sa04)
         self.unpack_sqlalchemy(sa_tarball, self.sa05)
-        
+
         # Setup build steps
         self.compile()
         self.test()
@@ -96,10 +97,10 @@ class AppBuilder(Builder):
 
         # Build .egg file for trunk and upload to the master
         egg_path = os.path.join(self.destFolder, eggTarball)
-        self.compress_egg(eggTarball)
+        self.compress_egg('./build/dist', eggTarball)
         self.upload(eggTarball, egg_path)
         self.master(['mv ' + egg_path + ' ' + self.webFolder])
-                
+
         return Builder.start(self, **kwargs)
 
 
@@ -123,16 +124,18 @@ class AppBuilder(Builder):
         return self.decompress(src, **buildstep_kwargs)
 
 
-    def compress_egg(self, src, **buildstep_kwargs):
+    def compress_egg(self, src, dest, **buildstep_kwargs):
         """
         Compresses the .egg file into a tarball for transfer to the buildmaster.
         
-        @param src: Location of the tarball.
+        @param src: Contents of the tarball.
         @type src: C{str}
+        @param dest: Name of the tarball.
+        @type dest: C{str}
         """
         self.stepName = 'Compress .egg file'
         self.descriptionDone = 'Compressed .egg file'
-        self.command = ['./build/dist']
+        self.command = [src, dest]
 
         return self.compress(src, **buildstep_kwargs)
 
@@ -161,3 +164,47 @@ class AppBuilder(Builder):
 
         return self.python(script, args, **buildstep_kwargs)
 
+
+class GAEBuilder(Builder):
+    """
+    Google App Engine builder.
+    """
+
+    def __init__(self, name, slaveName, src, **kwargs):
+        """
+        @param name: Name of the builder.
+        @type name: C{str}
+        @param slaveName: Name of the buildslave.
+        @type slaveName: C{str}
+        @param src: Location of the buildslave script.
+        @type src: C{str}
+        """
+        self.name = name
+        self.slaveName = slaveName
+        self.src = src
+
+        Builder.__init__(self, name, slaveName, **kwargs)
+
+
+    def start(self, **kwargs):
+        """
+        Create and return the builder.
+        
+        @return: The Google App Engine builder dict
+        @rtype: C{dict}
+        """
+        # Setup buildsteps
+        self.run_gae(self.src)
+
+        return Builder.start(self, **kwargs)
+
+
+    def run_gae(self, src, **buildstep_kwargs):
+        """
+        Run the gae buildslave script.
+        """
+        self.type = GAECompile
+        self.stepName = 'google-app-engine'
+        self.descriptionDone = 'google-app-engine punit'
+
+        return self.python(src, **buildstep_kwargs)
