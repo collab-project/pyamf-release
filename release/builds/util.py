@@ -354,7 +354,7 @@ class GAEBuilder(object):
         """
         compile = GAECompile(slaveScript=self.script)
 
-        f = factory.BuildFactory()
+        f = BuildFactory()
         f.addStep(compile)
 
         b = {'name': self.builder,
