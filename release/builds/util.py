@@ -47,7 +47,7 @@ class Builder(object):
     """
     """
 
-    def __init__(self, name, slaveName, scm_step, os):
+    def __init__(self, name, slaveName, scm_step, os, **kwargs):
         """
         @param name: Name of the builder.
         @type name: C{str}
@@ -65,10 +65,11 @@ class Builder(object):
         self.os = os
         self.command = []
         self.factory = BuildFactory()
-        print 'Starting slave: %s' % slaveName
-        print 'Python: %s' % self.version
-        
-    def start(self):
+
+	print "Started builder on the '%s' bot for Python %s" % (slaveName, self.version)
+
+
+    def start(self, **kwargs):
         """
         Create and return builder.
         """
@@ -77,7 +78,7 @@ class Builder(object):
              'builddir': self.name,
              'factory': self.factory,
         }
-        
+
         return b
 
 
@@ -89,7 +90,7 @@ class Builder(object):
         """
         step = self.type(name=self.stepName, descriptionDone=self.descriptionDone,
                          command=self.command, **buildstep_kwargs)
-        
+
         self.factory.addStep(step)
 
 
@@ -114,7 +115,7 @@ class Builder(object):
         """
         self.stepName = 'python%s-%s' % (self.version, action)
         self.descriptionDone = 'python%s %s' % (self.version, action)
-        self.command = getInterpreter(self.os, self.version) + ['./setup.py', action, self.command]
+        self.command = getInterpreter(self.os, self.version) + ['./setup.py', action] + self.command
 
         if self.ext is not True:
             self.command.append('--disable-ext')
@@ -167,6 +168,7 @@ class Builder(object):
         self.ext = ext
         self.stepName = 'Compiling code'
         self.descriptionDone = 'Compiled code'
+        self.command = []
 
         return self.setup_step('build', **buildstep_kwargs)
 
@@ -182,6 +184,7 @@ class Builder(object):
         self.ext = ext
         self.stepName = 'Running unit tests'
         self.descriptionDone = 'Completed unit tests'
+	self.command = []
         #step.evaluateCommand = evaluateCommand
 
         return self.setup_step('test', **buildstep_kwargs)
@@ -248,8 +251,7 @@ class Builder(object):
         """
         self.stepName = 'Running Python script %s' % script
         self.type = ShellCommand
-        self.command = [getInterpreter(self.os, self.version),
-                        script] + args
+        self.command = getInterpreter(self.os, self.version) + [script] + args
 
         return self.slave_step(**buildstep_kwargs)
 
@@ -347,7 +349,7 @@ class GAEBuilder(object):
         self.script = src
 
 
-    def createBuilder(self):
+    def start(self):
         """
         Create and return the builder.
         

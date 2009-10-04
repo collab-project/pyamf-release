@@ -57,7 +57,7 @@ class AppBuilder(Builder):
         Builder.__init__(self, name, slaveName, scm, name, **kwargs)
         
 
-    def start(self):
+    def start(self, **kwargs):
         """
         Run the builder.
         """
@@ -99,8 +99,8 @@ class AppBuilder(Builder):
         self.compress_egg(eggTarball)
         self.upload(eggTarball, egg_path)
         self.master(['mv ' + egg_path + ' ' + self.webFolder])
-        
-        Builder.start(self)
+                
+        return Builder.start(self, **kwargs)
 
 
     def unpack_sqlalchemy(self, src, version, **buildstep_kwargs):
