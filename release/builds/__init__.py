@@ -115,7 +115,7 @@ class AppBuilder(Builder):
         if version is None:
             return
 
-        self.name = 'unpack-sqlalchemy-' + version
+        self.stepName = 'unpack-sqlalchemy-' + version
         self.descriptionDone = 'Unpacked SQLAlchemy ' + version
 
         src = src % version
@@ -130,7 +130,7 @@ class AppBuilder(Builder):
         @param src: Location of the tarball.
         @type src: C{str}
         """
-        self.name = 'Compress .egg file'
+        self.stepName = 'Compress .egg file'
         self.descriptionDone = 'Compressed .egg file'
         self.command = ['./build/dist']
 
@@ -144,7 +144,7 @@ class AppBuilder(Builder):
         @param src: Location of the dumps tarball.
         @type src: C{str}
         """
-        self.name = 'Decompress AMF dump files'
+        self.stepName = 'Decompress AMF dump files'
         self.descriptionDone = 'Decompressed AMF dump files'
 
         return self.decompress(src, **buildstep_kwargs)
@@ -154,7 +154,7 @@ class AppBuilder(Builder):
         """
         Run the parse_dump script on the AMF dump files.
         """
-        self.name = 'Parsing AMF dumps'
+        self.stepName = 'Parsing AMF dumps'
         self.descriptionDone = 'Parsed AMF dumps'
         script = './build/parse_dump.py'
         args = ['./build/dumps/*']
