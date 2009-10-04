@@ -160,20 +160,16 @@ class Builder(object):
         return self.slave_step(**buildstep_kwargs)
 
 
-    def compile(self, ext=False, **buildstep_kwargs):
+    def clean(self, **buildstep_kwargs):
         """
-        Build the code.
-        
-        @param ext: Enable C-extension build.
-        @type ext: C{bool}
+        Clean the build.
         """
-        self.type = Compile
-        self.ext = ext
-        self.stepName = 'Compiling code'
-        self.descriptionDone = 'Compiled code'
-        self.command = []
+        self.type = ShellCommand
+        self.stepName = 'Cleaning'
+        self.descriptionDone = 'Build cleaned'
+        self.command = ['rm', '-rf', 'build']
 
-        return self.setup_step('build', **buildstep_kwargs)
+        return self.slave_step(**buildstep_kwargs)
 
 
     def compile(self, ext=False, **buildstep_kwargs):
