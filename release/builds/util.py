@@ -65,8 +65,9 @@ class Builder(object):
         self.os = os
         self.command = []
         self.factory = BuildFactory()
-
-
+        print 'Starting slave: %s' % slaveName
+        print 'Python: %s' % self.version
+        
     def start(self):
         """
         Create and return builder.
@@ -86,7 +87,7 @@ class Builder(object):
         
         @return: The step.
         """
-        step = self.type(name=self.name, descriptionDone=self.descriptionDone,
+        step = self.type(name=self.stepName, descriptionDone=self.descriptionDone,
                          command=self.command, **buildstep_kwargs)
         
         self.factory.addStep(step)
@@ -98,7 +99,7 @@ class Builder(object):
         
         @return: The step.
         """
-        step = MasterShellCommand(name=self.name, command=self.command,
+        step = MasterShellCommand(name=self.stepName, command=self.command,
 				  **buildstep_kwargs)
         
         self.factory.addStep(step)
@@ -111,7 +112,7 @@ class Builder(object):
         @param action: One of: build, install, test
         @type action: C{str}
         """
-        self.name = 'python%s-%s' % (self.version, action)
+        self.stepName = 'python%s-%s' % (self.version, action)
         self.descriptionDone = 'python%s %s' % (self.version, action)
         self.command = getInterpreter(self.os, self.version) + ['./setup.py', action, self.command]
 
@@ -131,7 +132,7 @@ class Builder(object):
         @return: A slave step.
         """
         self.type = ShellCommand
-        self.name = 'Decompressing %s' % file
+        self.stepName = 'Decompressing %s' % file
         self.descriptionDone = 'Decompressed %s' % file
         self.command = ['tar', 'xvf', file]
         
@@ -148,7 +149,7 @@ class Builder(object):
         @return: A slave step.
         """
         self.type = ShellCommand
-        self.name = 'Compressing %s' % file
+        self.stepName = 'Compressing %s' % file
         self.descriptionDone = 'Compressed %s' % file
         self.command = ['tar', 'zcvf', file]
         
@@ -164,7 +165,7 @@ class Builder(object):
         """
         self.type = Compile
         self.ext = ext
-        self.name = 'Compiling code'
+        self.stepName = 'Compiling code'
         self.descriptionDone = 'Compiled code'
 
         return self.setup_step('build', **buildstep_kwargs)
@@ -179,7 +180,7 @@ class Builder(object):
         """
         self.type = Test
         self.ext = ext
-        self.name = 'Running unit tests'
+        self.stepName = 'Running unit tests'
         self.descriptionDone = 'Completed unit tests'
         #step.evaluateCommand = evaluateCommand
 
@@ -197,7 +198,7 @@ class Builder(object):
         """
         self.type = Compile
         self.ext = ext
-        self.name = 'Installing code to %s' % dest
+        self.stepName = 'Installing code to %s' % dest
         self.descriptionDone = 'Installed code to %s' % dest
         self.command = ['--root=' + dest]
         
@@ -215,7 +216,7 @@ class Builder(object):
         """
         self.type = ShellCommand
         self.ext = ext
-        self.name = 'Building .egg in %s' % dest
+        self.stepName = 'Building .egg in %s' % dest
         self.descriptionDone = 'Created .egg in %s' % dest
         self.command = ['--dist-dir=' + dest]
         
@@ -229,8 +230,8 @@ class Builder(object):
         @param command: Command to run on the master.
         @type command: L{}
         """
-        self.name = 'Publish .egg to web'
-        self.descriptionDone = 'Published .egg to web'
+        self.stepName = 'Running master command'
+        self.descriptionDone = 'Finished master command'
         self.command = command
 
         return self.master_step(**buildstep_kwargs)
@@ -245,6 +246,7 @@ class Builder(object):
         @param args: Arguments passed to the Python script.
         @type args: C{list}
         """
+        self.stepName = 'Running Python script %s' % script
         self.type = ShellCommand
         self.command = [getInterpreter(self.os, self.version),
                         script] + args
@@ -284,7 +286,7 @@ class Builder(object):
         @type src: C{str}
         """
         self.type = PyFlakes
-        self.name = 'PyFlakes'
+        self.stepName = 'PyFlakes'
         self.descriptionDone = 'PyFlakes'
         self.command = ['pyflakes', src]
 
