@@ -28,8 +28,6 @@ class AppBuilder(Builder):
         @type slaveName: C{str}
         @param scm: Source control buildstep.
         @type scm: L{buildbot.steps.source.*}
-        @param os: String containing the operating system name.
-        @type os: C{str}
         @param destFolder: Destination folder on buildmaster for .egg file.
         @type destFolder: C{str}
         @param webFolder: Destination folder on buildmaster for nightly file.
@@ -135,9 +133,8 @@ class AppBuilder(Builder):
         """
         self.stepName = 'Compress .egg file'
         self.descriptionDone = 'Compressed .egg file'
-        self.command = [src, dest]
 
-        return self.compress(src, **buildstep_kwargs)
+        return self.compress(src, dest, **buildstep_kwargs)
 
 
     def unpack_dumps(self, src, **buildstep_kwargs):
@@ -183,7 +180,7 @@ class GAEBuilder(Builder):
         self.slaveName = slaveName
         self.src = src
 
-        Builder.__init__(self, name, slaveName, **kwargs)
+        Builder.__init__(self, name, slaveName, None, 'unix', **kwargs)
 
 
     def start(self, **kwargs):

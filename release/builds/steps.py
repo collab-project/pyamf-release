@@ -1,6 +1,8 @@
 # Copyright (c) 2007-2009 The PyAMF Project.
 # See LICENSE for details.
 
+from release.builds.util import ShellCommand
+
 
 def evaluateCommand(cmd):
     r = Test.evaluateCommand(self, cmd)

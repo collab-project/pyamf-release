@@ -67,7 +67,7 @@ class Builder(object):
         self.command = []
         self.factory = BuildFactory()
 
-        print "Started builder on the '%s' bot for Python %s" % (slaveName, self.version)
+        print "Started builder '%s' on the '%s' bot for Python %s" % (name, slaveName, self.version)
 
 
     def start(self, **kwargs):
