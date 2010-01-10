@@ -8,21 +8,10 @@ use_setuptools()
 import sys, os.path
 from setuptools import setup, find_packages
 
-
-def get_version():
-    """
-    Gets the version number. Pulls it from the source files rather than
-    duplicating it.
-    """
-    # we read the file instead of importing it as root sometimes does not
-    # have the cwd as part of the PYTHONPATH
-    from pyamf import __version__ as version
-
-    return '.'.join([str(x) for x in version])
-
+from pyamf import version
 
 setup(name = "PyAMF Release Scripts",
-    version = get_version(),
+    version = str(version),
     description = "Tools and scripts for the PyAMF release process",
     url = "http://pyamf.org",
     author = "The PyAMF Project",

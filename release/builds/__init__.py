@@ -359,7 +359,7 @@ class Library(object):
     """
     """
 
-    def __init__(self, name, extension, src, versions, slaves):
+    def __init__(self, name, src, versions, slaves, extension=True):
         """
         """
         self.name = name
@@ -371,10 +371,15 @@ class Library(object):
 
 class BuildFarm(object):
     """
+    Collection of build slaves.
     """
 
     def __init__(self, name, libraries, scm, distFolder, webFolder, libFolder):
         """
+        @param libraries: List of L{Library} instances
+        @type libraries: C{list}
+        @param scm: SCM system
+        @type scm: C{buildbot.steps.source.*}
         """
         self.name = name
         self.libraries = libraries

@@ -32,29 +32,34 @@ slaves = [
         'debian64-py23',
         'debian64-py24',
         'debian64-py25',
-        'debian64-py26',
-        'google-appengine-py25',
-        'jython25'
+        'debian64-py26'
+        #'google-appengine-py25',
+        #'jython25'
 ]
 
 
 # LIBRARIES
-sqlalchemy = Library('SQLAlchemy', True, libFolder + 'sqlalchemy-%s.tar.gz',
-                     ['0.4.8', '0.5.6'],
-                     ['ubuntu-py23', 'winxp32-py24'])
+sqlalchemy = Library(name='SQLAlchemy',
+                     src=libFolder + 'sqlalchemy-%s.tar.gz',
+                     versions=['0.4.8', '0.5.6'],
+                     slaves=slaves)
 
-twisted = Library('Twisted', True, libFolder + 'twisted-%s.tar.gz',
-                  ['2.5.0', '8.1.0', '8.2.0'],
-                  ['ubuntu-py23', 'winxp32-py24'])
+twisted = Library(name='Twisted',
+                  src=libFolder + 'twisted-%s.tar.gz',
+                  versions=['2.5.0', '8.2.0', '9.0.0'],
+                  slaves=slaves)
 
-django = Library('Django', True, libFolder + 'django-%s.tar.gz',
-                  ['0.9.7', '1.0.1'],
-                  ['ubuntu-py23', 'winxp32-py24'])
+django = Library('Django',
+                 src=libFolder + 'django-%s.tar.gz',
+                 versions=['0.9.7', '1.1'],
+                 slaves=slaves)
 
 
 # BUILD FARM
 libraries = [sqlalchemy, twisted, django]
-farm = BuildFarm('PyAMF Buildfarm', libraries, svn_step, distFolder, webFolder, libFolder)
+farm = BuildFarm(name='PyAMF Buildfarm', libraries=libraries,
+                 scm=svn_step, distFolder=distFolder,
+                 webFolder=webFolder, libFolder=libFolder)
 builders = farm.run()
 
 # THIS IS IMPORTED IN THE BUILDBOT MASTER CONFIG FILE
