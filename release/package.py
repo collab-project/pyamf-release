@@ -1,57 +1,167 @@
-#!/usr/local/bin/python
-
-# Copyright (c) 2007-2009 The PyAMF Project.
-# See LICENSE for details.
+# Copyright (c) The PyAMF Project.
+# See LICENSE.txt for details.
 
 """
-A basic release builder.
-
-Example usage:
-  python package.py --version=0.3 --name=PyAMF --baseurl=http://svn.pyamf.org/pyamf/tags --branch=release-0.3
-
-For more help try:
-  python package.py --help
+Scripts for basic release building in the PyAMF project.
 """
 
 import os, os.path, sys, shutil
-import subprocess, tempfile
+import subprocess
 import hashlib
+import logging
+from tempfile import mkdtemp
+from tarfile import TarFile
 
-def export_svn(url, options):
-    print
-    print 'Checking out: %s\n' % url
+from twisted.python.filepath import FilePath
+from twisted.python._release import runCommand
+from twisted.python._release import Project, DistributionBuilder
 
-    args = ['svn', 'export']
 
-    args.append(url)
+class PyAMFProject(Project):
+    """
+    A representation of a PyAMF project that has a version.
 
-    if options.username is not None:
-        args.append('--username %s' % options.username)
+    :ivar directory: A :class`twisted.python.filepath.FilePath` pointing to the base
+        directory of a PyAMF-style Python package. The package should contain
+        a `__init__.py` file, and the root directory contains the LICENSE.txt etc
+        files.
+    """
 
-    if options.password is not None:
-        args.append('--password %s' % options.password)
+    def getVersion(self):
+        """
+        :return: :class`pyamf.version.Version` specifying the version number of the project
+                 based on live python modules.
+        """
+        namespace = {}
+        version_file = self.directory.child("__init__.py")
+        execfile(version_file.path, namespace)
+        logging.debug(version_file.path)
 
-    args.append('--force')
-    export_dir = tempfile.mkdtemp()
-    args.append(export_dir)
+        return namespace["version"]
 
-    cmd = subprocess.Popen(args)
-    retcode = cmd.wait()
 
-    return retcode, cmd, export_dir
+    def updateVersion(self, version):
+        """
+        Replace the existing version numbers in files with the specified version.
+        
+        oldVersion = self.getVersion()
+        replaceProjectVersion(self.directory.child("_version.py").path,
+                              version)
+        _changeVersionInFile(
+            oldVersion, version,
+            self.directory.child("topfiles").child("README").path)
+        """
+        print "hey " + version
 
-def export_repo(options):
-    repo_url = '%s/%s' % (options.baseurl, options.branch)
 
-    if options.repository == 'svn':
-        retcode, cmd, export_dir = export_svn(repo_url, options)
-    else:
-        raise ValueError, "Unknown repository type %s" % options.repository
+class PyAMFDistributionBuilder(DistributionBuilder):
+    """
+    A builder of PyAMF distributions.
 
-    if retcode != 0:
-        raise RuntimeError, "Problem exporting repository"
+    This knows how to build tarballs for PyAMF.
+    """
 
-    return export_dir
+    def build(self, version):
+        """
+        Build the main PyAMF distribution in `PyAMF-<version>.tar.bz2`.
+
+        :type version: `str`
+        :param version: The version of PyAMF to build.
+
+        :return: The tarball file.
+        :rtype: :class:`twisted.python.filepath.FilePath`
+        """
+        releaseName = "PyAMF-%s" % (version,)
+        buildPath = lambda *args: '/'.join((releaseName,) + args)
+        outputFile = self.outputDirectory.child(releaseName + ".tar.bz2")
+        tarball = self._createTarball(outputFile)
+
+        # add doc files
+        docPath = self.rootDirectory.child("doc")
+        tarball.add(self.rootDirectory.child("LICENSE.txt").path,
+                    buildPath("LICENSE.txt"))       
+        tarball.close()
+
+        return outputFile
+
+    def _createTarball(self, outputFile):
+        """
+        Helper method to create a tarball with things.
+
+        :param outputFile: The location of the tar file to create.
+        :type outputFile: `FilePath`
+        :return: `TarFile`
+        """
+        tarball = TarFile.open(outputFile.path, 'w:bz2')
+        
+        return tarball
+
+
+def buildAllTarballs(checkout, destination):
+    """
+    Build complete tarballs (including documentation) for Twisted and all
+    subprojects.
+
+    This should be called after the version numbers have been updated and
+    NEWS files created.
+
+    :type checkout: `str`
+    :param checkout: The SVN URL from which a pristine source tree
+        will be exported.
+    @type destination: L{FilePath}
+    @param destination: The directory in which tarballs will be placed.
+    """
+    workPath = FilePath(mkdtemp())
+    logging.basicConfig(level=logging.DEBUG,
+           format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
+    logging.info("Starting tarball builder.")
+    logging.info("Build directory:" + workPath.path)
+    logging.info("Tarball export directory: " + destination.path)
+    logging.info("SVN URL: " + checkout)
+    logging.info('')
+
+    export = workPath.child("export")
+    svn_export = ["svn", "export", checkout, export.path]
+    logging.info("Exporting SVN directory...")
+    logging.debug(" ".join(svn_export))
+    runCommand(svn_export)
+    logging.info('')
+
+    sourcePath = export.child("pyamf")
+    project = PyAMFProject(sourcePath)
+    version = project.getVersion()
+    logging.info("Building PyAMF " + str(version))
+
+    if not destination.exists():
+        logging.debug("Creating tarball export directory...")
+        destination.createDirectory()
+
+    db = PyAMFDistributionBuilder(export, destination)
+    db.build(version)
+
+    workPath.remove()
+
+
+class BuildTarballsScript(object):
+    """
+    A thing for building release tarballs. See L{main}.
+    """
+    buildAllTarballs = staticmethod(buildAllTarballs)
+
+    def main(self, args):
+        """
+        Build all release tarballs.
+
+        @type args: list of str
+        @param args: The command line arguments to process.  This must contain
+            two strings: the checkout directory and the destination directory.
+        """
+        if len(args) != 2:
+            sys.exit("Must specify two arguments: "
+                     "checkout and destination path")
+
+        self.buildAllTarballs(args[0], FilePath(args[1]))
+
 
 def build_ext(src_dir):
     cwd = os.getcwd()
@@ -120,32 +230,6 @@ def build_docs(options):
     shutil.copytree(temp_doc, doc_dir)
 
     return doc_dir
-
-def parse_args():
-    def parse_targets(option, opt, value, parser):
-        print value
-
-    from optparse import OptionParser
-
-    parser = OptionParser()
-
-    parser.add_option('--baseurl', dest='baseurl',
-                      help='Root URL of the source control system')
-    parser.add_option('--branch', dest='branch', default='trunk',
-                      help='Name of the target folder in the source control system [default: %default]')
-    parser.add_option('--version', dest='version',
-                      help='The version number of the project')
-    parser.add_option('--name', dest='name', help='The name of the project')
-    parser.add_option('--username', dest='username', default=None,
-                                    help='Username to access the repository')
-    parser.add_option('--password', dest='password', default=None,
-                                    help='Password to access the repository')
-    parser.add_option('--repository', dest='repository', default='svn',
-                       help='Source control system type [default: %default]')
-    parser.add_option('--dotpath', dest='dotpath', default='/usr/bin/dot',
-                      help="Location of the Graphviz 'dot' executable [default: %default]")
-
-    return parser.parse_args()
 
 def build_zip(build_dir, options):
     cwd = os.getcwd()
