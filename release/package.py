@@ -76,6 +76,10 @@ class DistributionBuilder(TwistedDistributionBuilder):
         releaseName = "PyAMF-%s" % (version,)
         self.buildPath = lambda *args: os.sep.join((releaseName,) + args)       
 
+        # TODO: ticket 543 - replace release date in changelog
+        # TODO: ticket 546 - remove the egg_info metadata from setup.cfg
+        # RODO: ticket 665 - parse CHANGES.txt into a simple structure
+
         # build documentation
         docPath = self.rootDirectory.child("doc")
         self._buildDocumentation(docPath)
