@@ -7,7 +7,6 @@ Scripts for basic release building in the PyAMF project.
 
 import os, sys
 import logging
-
 from hashlib import md5
 from tempfile import mkdtemp
 from tarfile import TarFile
@@ -18,7 +17,7 @@ from twisted.python._release import runCommand
 from twisted.python._release import Project as TwistedProject
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
-
+   
 class Project(TwistedProject):
     """
     A representation of a PyAMF project that has a version.
@@ -61,7 +60,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
     This knows how to build tarballs for PyAMF.
     """
 
-    files = ["LICENSE.txt", "CHANGES.txt", "README.txt", "setup.py", "setup.cfg",
+    files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
 
     export_types = ["tar.bz2", "tar.gz", "zip"]
@@ -108,9 +107,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
             if ext == "zip":
                 self.tarball = self._createZip(outputFile)
             else:
-                self.tarball = self._createTarball(outputFile, ext[:3])
+                self.tarball = self._createTarball(outputFile)
 
-            self._addFiles()
+            self._addFiles()                           
             self.tarball.close()
 
     def clean(self):
@@ -143,49 +142,66 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         src = self.rootDirectory
 
-        try:
-            writer = self.tarball.add
-        except:
-            writer = self.tarball.write
-
         # add compiled documentation
-        writer(self.html_docs.path, self.buildPath("doc"))
+        self.tarball.add(self.html_docs.path, self.buildPath("doc"))
         logging.debug("\t\t - doc")
 
         # add root files
-        for f in self.files:
+        for f in self.files:        
             logging.debug("\t\t - " + f)
-            writer(src.child(f).path, self.buildPath(f))       
+            self.tarball.add(src.child(f).path, self.buildPath(f))       
 
-    def _createTarball(self, outputFile, compression):
+    def _createTarball(self, outputFile):
         """
-        Helper method to create a tarball file with things.
+        Helper method to create a tarball file.
 
-        :param outputFile: The location of the tar file to create.
+        :param outputFile: The location to use for the new tar file.
         :type outputFile: `FilePath`
-        :param compression: Compression type/file extension, eg. 'bz2'
-        :type compression: `str`
-        :return: `TarFile`
+        :return: compressed `TarFile`
         """
-        tarball = TarFile.open(outputFile.path, 'w:' + compression)
+        comp = outputFile.path[-3:]
+        
+        if comp == ".gz":
+            comp = "gz"
+        
+        tarball = TarFile.open(outputFile.path, mode='w:' + comp)
         
         return tarball
 
     def _createZip(self, outputFile):
         """
-        Helper method to create a ZIP file with things.
+        Helper method to create a ZIP file.
 
         :param outputFile: The location of the zip file to create.
         :type outputFile: `FilePath`
         :return: `ZipFile`
         """
+        def zip_writer(dirpath, zippath):
+            basedir = os.path.dirname(dirpath) + '/'
+            if os.path.isdir(dirpath):
+                for root, dirs, files in os.walk(dirpath):
+                    if os.path.basename(root)[0] == '.':
+                        continue # skip hidden directories
+                    dirname = root.replace(basedir, '')
+                    for f in files:
+                        if f[-1] == '~' or f[0] == '.':
+                            # skip backup files and all hidden files
+                            continue
+
+                        self.tarball.write(root + '/' + f, dirname + '/' + f)
+            else:
+                self.tarball.write(dirpath, os.path.basename(zippath))
+
         zipfile = ZipFile(outputFile.path, 'w')
-        
+        zipfile.add = zip_writer
+
         return zipfile
 
     def _createMD5(self, fileName, excludeLine="", includeLine=""):
         """
         Compute MD5 hash of the specified file.
+
+        :rtype: `str`
         """
         m = md5()
         try:
@@ -235,7 +251,7 @@ class BuildTarballsScript(object):
         :param destination: The directory in which tarballs will be placed.
         """
         workPath = FilePath(mkdtemp())
-
+        
         logging.basicConfig(level=logging.DEBUG,
                format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
         logging.info("Started distribution builder...")
@@ -261,7 +277,7 @@ class BuildTarballsScript(object):
         db = DistributionBuilder(export, destination)
         db.build(version)
 
-        #workPath.remove()
+        workPath.remove()
 
 
 __all__ = ["BuildTarballsScript"]
@@ -287,14 +303,6 @@ def package_project(src_dir, doc_dir, options):
     """
     Builds tar.gz, tar.bz2, zip from the src_dir's
     """
-    build_dir = tempfile.mkdtemp()
-    package_dir = os.path.join(build_dir, '%s-%s' % (options.name, options.version))
     shutil.rmtree(os.path.join(src_dir, 'build'))
     shutil.rmtree(os.path.join(src_dir, '%s.egg-info' % options.name))
-    shutil.copytree(src_dir, package_dir)
-    shutil.copytree(doc_dir, os.path.join(package_dir, 'doc'))
 
-    clean_package_dir(package_dir)
-
-    return build_dir, build_zip(build_dir, options), \
-        build_tar_gz(build_dir, options), build_tar_bz2(build_dir, options)
