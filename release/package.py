@@ -5,19 +5,20 @@
 Scripts for basic release building in the PyAMF project.
 """
 
-import os, os.path, sys, shutil
-import subprocess
+import os, sys
 import hashlib
 import logging
 from tempfile import mkdtemp
 from tarfile import TarFile
+from zipfile import ZipFile
 
 from twisted.python.filepath import FilePath
 from twisted.python._release import runCommand
-from twisted.python._release import Project, DistributionBuilder
+from twisted.python._release import Project as TwistedProject
+from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
 
-class PyAMFProject(Project):
+class Project(TwistedProject):
     """
     A representation of a PyAMF project that has a version.
 
@@ -35,35 +36,36 @@ class PyAMFProject(Project):
         namespace = {}
         version_file = self.directory.child("__init__.py")
         execfile(version_file.path, namespace)
-        logging.debug(version_file.path)
 
         return namespace["version"]
-
 
     def updateVersion(self, version):
         """
         Replace the existing version numbers in files with the specified version.
-        
-        oldVersion = self.getVersion()
-        replaceProjectVersion(self.directory.child("_version.py").path,
-                              version)
-        _changeVersionInFile(
-            oldVersion, version,
-            self.directory.child("topfiles").child("README").path)
         """
-        print "hey " + version
+        oldVersion = self.getVersion()
+
+        #update(self.directory.child("__init__.py"), version)
+        #_changeVersionInFile(
+        #    oldVersion, version,
+        #    self.directory.child("topfiles").child("README").path)
 
 
-class PyAMFDistributionBuilder(DistributionBuilder):
+class DistributionBuilder(TwistedDistributionBuilder):
     """
     A builder of PyAMF distributions.
 
     This knows how to build tarballs for PyAMF.
     """
 
+    files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
+             "README.txt"]
+
+    export_types = ["tar.bz2", "tar.gz", "zip"]
+
     def build(self, version):
         """
-        Build the main PyAMF distribution in `PyAMF-<version>.tar.bz2`.
+        Build the main PyAMF distribution in `PyAMF-<version>.<ext>`.
 
         :type version: `str`
         :param version: The version of PyAMF to build.
@@ -72,81 +74,89 @@ class PyAMFDistributionBuilder(DistributionBuilder):
         :rtype: :class:`twisted.python.filepath.FilePath`
         """
         releaseName = "PyAMF-%s" % (version,)
-        buildPath = lambda *args: '/'.join((releaseName,) + args)
-        outputFile = self.outputDirectory.child(releaseName + ".tar.bz2")
-        tarball = self._createTarball(outputFile)
+        self.buildPath = lambda *args: os.sep.join((releaseName,) + args)       
 
-        # add doc files
+        # build documentation
         docPath = self.rootDirectory.child("doc")
-        tarball.add(self.rootDirectory.child("LICENSE.txt").path,
-                    buildPath("LICENSE.txt"))       
-        tarball.close()
+        self._buildDocumentation(docPath)
 
-        return outputFile
+        logging.info("")
+        logging.info("Creating %s.|%s" % (releaseName, "|".join(self.export_types)))
 
-    def _createTarball(self, outputFile):
+        # create tarballs
+        if self.outputDirectory.exists():
+            self.outputDirectory.remove()
+
+        logging.debug("Creating tarball export directory...")
+        self.outputDirectory.createDirectory()
+        
+        for ext in self.export_types:
+            outputFile = self.outputDirectory.child(".".join(
+                [releaseName, ext]))
+            logging.info(" - %s%s%s" % (os.path.basename(self.outputDirectory.path),
+                                        os.sep, os.path.basename(outputFile.path)))
+
+            if ext == "zip":
+                self.tarball = self._createZip(outputFile)
+            else:
+                self.tarball = self._createTarball(outputFile, ext[:3])
+
+            self._addFiles()
+            self.tarball.close()
+
+    def _buildDocumentation(self, doc):
         """
-        Helper method to create a tarball with things.
+        Build documentation.
+        """
+        logging.info("Building documentation..")
+
+
+    def _addFiles(self):
+        """
+        Add documentation and other files to tarball.
+        """
+        root = self.rootDirectory
+
+        try:
+            writer = self.tarball.add
+        except:
+            writer = self.tarball.write
+
+        for f in self.files:
+            logging.debug("\t\t - " + f)
+            writer(root.child(f).path, self.buildPath(f))
+        
+    def _createTarball(self, outputFile, compression):
+        """
+        Helper method to create a tarball file with things.
 
         :param outputFile: The location of the tar file to create.
         :type outputFile: `FilePath`
+        :param compression: Compression type/file extension, eg. 'bz2'
+        :type compression: `str`
         :return: `TarFile`
         """
-        tarball = TarFile.open(outputFile.path, 'w:bz2')
+        tarball = TarFile.open(outputFile.path, 'w:' + compression)
         
         return tarball
 
+    def _createZip(self, outputFile):
+        """
+        Helper method to create a ZIP file with things.
 
-def buildAllTarballs(checkout, destination):
-    """
-    Build complete tarballs (including documentation) for Twisted and all
-    subprojects.
-
-    This should be called after the version numbers have been updated and
-    NEWS files created.
-
-    :type checkout: `str`
-    :param checkout: The SVN URL from which a pristine source tree
-        will be exported.
-    @type destination: L{FilePath}
-    @param destination: The directory in which tarballs will be placed.
-    """
-    workPath = FilePath(mkdtemp())
-    logging.basicConfig(level=logging.DEBUG,
-           format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
-    logging.info("Starting tarball builder.")
-    logging.info("Build directory:" + workPath.path)
-    logging.info("Tarball export directory: " + destination.path)
-    logging.info("SVN URL: " + checkout)
-    logging.info('')
-
-    export = workPath.child("export")
-    svn_export = ["svn", "export", checkout, export.path]
-    logging.info("Exporting SVN directory...")
-    logging.debug(" ".join(svn_export))
-    runCommand(svn_export)
-    logging.info('')
-
-    sourcePath = export.child("pyamf")
-    project = PyAMFProject(sourcePath)
-    version = project.getVersion()
-    logging.info("Building PyAMF " + str(version))
-
-    if not destination.exists():
-        logging.debug("Creating tarball export directory...")
-        destination.createDirectory()
-
-    db = PyAMFDistributionBuilder(export, destination)
-    db.build(version)
-
-    workPath.remove()
+        :param outputFile: The location of the zip file to create.
+        :type outputFile: `FilePath`
+        :return: `ZipFile`
+        """
+        zipfile = ZipFile(outputFile.path, 'w')
+        
+        return zipfile
 
 
 class BuildTarballsScript(object):
     """
-    A thing for building release tarballs. See L{main}.
+    A thing for building release tarballs. See `BuildAllTarballs`.
     """
-    buildAllTarballs = staticmethod(buildAllTarballs)
 
     def main(self, args):
         """
@@ -162,6 +172,46 @@ class BuildTarballsScript(object):
 
         self.buildAllTarballs(args[0], FilePath(args[1]))
 
+    def buildAllTarballs(self, checkout, destination):
+        """
+        Build complete tarballs (including documentation) for PyAMF.
+
+        :type checkout: `str`
+        :param checkout: The SVN URL from which a pristine source tree
+            will be exported.
+        @type destination: L{FilePath}
+        @param destination: The directory in which tarballs will be placed.
+        """
+        workPath = FilePath(mkdtemp())
+
+        logging.basicConfig(level=logging.DEBUG,
+               format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
+        logging.info("Starting tarball builder.")
+        logging.info("Build directory:" + workPath.path)
+        logging.info("Tarball export directory: " + destination.path)
+        logging.info("SVN URL: " + checkout)
+        logging.info('')
+
+        export = workPath.child("export")
+        svn_export = ["svn", "export", checkout, export.path]
+        logging.info("Exporting SVN directory...")
+        logging.debug(" ".join(svn_export))
+        runCommand(svn_export)
+        logging.info('')
+
+        sourcePath = export.child("pyamf")
+        project = Project(sourcePath)
+        version = project.getVersion()
+        logging.info("Building PyAMF %s..." % str(version))
+        project.updateVersion(version)
+
+        db = DistributionBuilder(export, destination)
+        db.build(version)
+
+        workPath.remove()
+
+
+# OLD
 
 def build_ext(src_dir):
     cwd = os.getcwd()
@@ -230,57 +280,6 @@ def build_docs(options):
     shutil.copytree(temp_doc, doc_dir)
 
     return doc_dir
-
-def build_zip(build_dir, options):
-    cwd = os.getcwd()
-    nandv = '%s-%s' % (options.name, options.version)
-
-    os.chdir(build_dir)
-
-    args = ['zip', '-9r', '%s.zip' % nandv, nandv]
-    cmd = subprocess.Popen(args)
-    retcode = cmd.wait()
-
-    if retcode != 0:
-        raise RuntimeError, "Error creating zip"
-
-    os.chdir(cwd)
-
-    return os.path.join(build_dir, '%s.zip' % nandv)
-
-def build_tar_gz(build_dir, options):
-    cwd = os.getcwd()
-    nandv = '%s-%s' % (options.name, options.version)
-
-    os.chdir(build_dir)
-
-    args = ['tar', '-cvzf', '%s.tar.gz' % nandv, nandv]
-    cmd = subprocess.Popen(args)
-    retcode = cmd.wait()
-
-    if retcode != 0:
-        raise RuntimeError, "Error creating tar.gz"
-
-    os.chdir(cwd)
-
-    return os.path.join(build_dir, '%s.tar.gz' % nandv)
-
-def build_tar_bz2(build_dir, options):
-    cwd = os.getcwd()
-    nandv = '%s-%s' % (options.name, options.version)
-
-    os.chdir(build_dir)
-
-    args = ['tar', '-cvjf', '%s.tar.bz2' % nandv, nandv]
-    cmd = subprocess.Popen(args)
-    retcode = cmd.wait()
-
-    if retcode != 0:
-        raise RuntimeError, "Error creating tar.bz2"
-
-    os.chdir(cwd)
-
-    return os.path.join(build_dir, '%s.tar.bz2' % nandv)
 
 def clean_package_dir(package_dir):
     for files in os.walk(package_dir):
