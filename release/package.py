@@ -46,6 +46,8 @@ class Project(TwistedProject):
         """
         oldVersion = self.getVersion()
 
+        # TODO: ticket 543 - replace release date in changelog
+        
         #update(self.directory.child("__init__.py"), version)
         #_changeVersionInFile(
         #    oldVersion, version,
@@ -59,8 +61,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
     This knows how to build tarballs for PyAMF.
     """
 
-    files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
-             "README.txt"]
+    files = ["LICENSE.txt", "CHANGES.txt", "README.txt", "setup.py", "setup.cfg",
+             "ez_setup.py", "pyamf", "cpyamf"]
 
     export_types = ["tar.bz2", "tar.gz", "zip"]
 
@@ -77,13 +79,15 @@ class DistributionBuilder(TwistedDistributionBuilder):
         releaseName = "PyAMF-%s" % (version,)
         self.buildPath = lambda *args: os.sep.join((releaseName,) + args)       
 
-        # TODO: ticket 543 - replace release date in changelog
         # TODO: ticket 546 - remove the egg_info metadata from setup.cfg
         # TODO: ticket 665 - parse CHANGES.txt into a simple structure
 
         # build documentation
         docPath = self.rootDirectory.child("doc")
         self.html_docs = self._buildDocumentation(docPath)
+
+        # clean up pycs
+        self.clean()
 
         logging.info("")
         logging.info("Creating %s.|%s" % (releaseName, "|".join(self.export_types)))
@@ -109,6 +113,15 @@ class DistributionBuilder(TwistedDistributionBuilder):
             self._addFiles()
             self.tarball.close()
 
+    def clean(self):
+        """
+        Clean .pyc and .so files.
+        """
+        for files in os.walk(self.rootDirectory.path):
+            for f in files[2]:
+                if f.endswith('.pyc') or f.endswith('.so'):
+                    os.unlink(os.path.join(files[0], f))
+                
     def _buildDocumentation(self, doc):
         """
         Build documentation.
@@ -128,7 +141,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         Add documentation and other files to tarball.
         """
-        root = self.rootDirectory
+        src = self.rootDirectory
 
         try:
             writer = self.tarball.add
@@ -142,8 +155,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
         # add root files
         for f in self.files:
             logging.debug("\t\t - " + f)
-            writer(root.child(f).path, self.buildPath(f))
-        
+            writer(src.child(f).path, self.buildPath(f))       
+
     def _createTarball(self, outputFile, compression):
         """
         Helper method to create a tarball file with things.
@@ -178,8 +191,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             fd = open(fileName, "rb")
         except IOError:
-            print "Unable to open the file:", filename
+            logging.error("Unable to open the file:" + filename)
             return
+
         content = fd.readlines()
         fd.close()
         for eachLine in content:
@@ -225,9 +239,10 @@ class BuildTarballsScript(object):
         logging.basicConfig(level=logging.DEBUG,
                format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
         logging.info("Started distribution builder...")
-        logging.info("Build directory:\t\t" + workPath.path)
-        logging.info("Tarball export directory:\t\t" + destination.path)
-        logging.info("SVN URL:\t\t" + checkout)
+        logging.info('')
+        logging.info("Build directory: %s" % workPath.path)
+        logging.info("Tarball export directory: %s" % destination.path)
+        logging.info("SVN URL: %s" % checkout)
         logging.info('')
 
         export = workPath.child("export")
@@ -249,6 +264,9 @@ class BuildTarballsScript(object):
         #workPath.remove()
 
 
+__all__ = ["BuildTarballsScript"]
+
+
 # OLD
 
 def build_ext(src_dir):
@@ -264,12 +282,6 @@ def build_ext(src_dir):
         raise RuntimeError, "Error building extension"
 
     os.chdir(cwd)
-
-def clean_package_dir(package_dir):
-    for files in os.walk(package_dir):
-        for f in files[2]:
-            if f.endswith('.pyc') or f.endswith('.so'):
-                os.unlink(os.path.join(files[0], f))
 
 def package_project(src_dir, doc_dir, options):
     """
