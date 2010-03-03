@@ -86,13 +86,11 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :rtype: :class:`twisted.python.filepath.FilePath`
         """
         self.releaseName = "%s-%s" % (title, version)
-        self.buildPath = lambda *args: os.sep.join((self.releaseName,) + args)       
-
-        # TODO: ticket 665 - parse CHANGES.txt into a simple structure
+        self.buildPath = lambda *args: os.sep.join((self.releaseName,) + args)
 
         # build documentation
-        docPath = self.rootDirectory.child("doc")
-        self.html_docs = self._buildDocumentation(docPath)
+        self.docPath = self.rootDirectory.child("doc")
+        self.html_docs = self._buildDocumentation()
 
         # clean up pycs
         self.clean()
@@ -113,7 +111,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 if f.endswith('.pyc') or f.endswith('.so'):
                     os.unlink(os.path.join(files[0], f))
                 
-    def _buildDocumentation(self, doc):
+    def _buildDocumentation(self):
         """
         Build documentation.
 
@@ -122,12 +120,12 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         logging.info("Building documentation...")
 
-        html_output = doc.child("_build").child('html')
-        sphinx_build = ["sphinx-build", "-b", "html", doc.path, html_output.path]
+        html_output = self.docPath.child("_build").child('html')
+        sphinx_build = ["sphinx-build", "-b", "html", self.docPath.path,
+                        html_output.path]
+
         logging.debug(" ".join(sphinx_build))
         runCommand(sphinx_build)
-
-        # TODO: copy examples      
 
         return html_output
 
@@ -153,8 +151,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         logging.info("Creating %s.|%s" % (self.releaseName, "|".join(self.export_types)))
 
         for ext in self.export_types:
-            outputFile = self.outputDirectory.child(".".join(
-                [self.releaseName, ext]))
+            outputFile = self.outputDirectory.child(".".join([self.releaseName, ext]))
             logging.info("")
             logging.info(" - %s%s%s" % (os.path.basename(self.outputDirectory.path),
                                         os.sep, os.path.basename(outputFile.path)))
@@ -209,6 +206,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         # add compiled documentation
         self.tarball.add(self.html_docs.path, self.buildPath("doc"))
+        self.tarball.add(self.docPath.child("tutorials").child("examples").path,
+                         self.buildPath("doc/tutorials/examples"))
         logging.debug("\t\t - doc")
 
         # add root files
