@@ -327,7 +327,10 @@ class BuildTarballsScript(object):
             sys.exit("Must specify two arguments: "
                      "checkout URL and destination path")
 
-        self.buildAllTarballs(args[0], FilePath(args[1]))
+        try:
+            self.buildAllTarballs(args[0], FilePath(args[1]))
+        except (KeyboardInterrupt):
+            pass
 
     def buildAllTarballs(self, checkout, destination):
         """
@@ -342,7 +345,7 @@ class BuildTarballsScript(object):
         workPath = FilePath(mkdtemp())
         
         logging.basicConfig(level=logging.INFO,
-               format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
+               format='%(message)s')
         logging.info("Started distribution builder...")
         logging.info('')
         logging.debug("Build directory: %s" % workPath.path)
