@@ -7,6 +7,7 @@ Scripts for basic release building in the PyAMF project.
 
 import os, sys
 import logging
+import urllib2
 from hashlib import md5
 from tempfile import mkdtemp
 from tarfile import TarFile
@@ -49,7 +50,7 @@ class Project(TwistedProject):
         # TODO: ticket 543 - replace release date in changelog
         
         # remove the egg_info metadata from setup.cfg
-        logging.info("Removing 'egg_info' from setup.cfg...")
+        logging.info("Updating setup.cfg...")
         setup_cfg = self.directory.child("setup.cfg")
         config = RawConfigParser()
         config.read(setup_cfg.path)
@@ -58,11 +59,6 @@ class Project(TwistedProject):
         # save updated configuration file
         with open(setup_cfg.path, 'wb') as configfile:
             config.write(configfile)
-
-        #update(self.directory.child("__init__.py"), version)
-        #_changeVersionInFile(
-        #    oldVersion, version,
-        #    self.directory.child("topfiles").child("README").path)
 
 
 class DistributionBuilder(TwistedDistributionBuilder):
@@ -77,20 +73,21 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
     export_types = ["tar.bz2", "tar.gz", "zip"]
 
-    def build(self, version):
+    def build(self, title, version):
         """
-        Build the main PyAMF distribution in `PyAMF-<version>.<ext>`.
+        Build the main distributions in `<title>-<version>.|targ.gz|tar.bz2|zip`.
 
+        :type title: `str`
+        :param title: The title of the distribution.
         :type version: `str`
         :param version: The version of PyAMF to build.
 
         :return: The tarball file.
         :rtype: :class:`twisted.python.filepath.FilePath`
         """
-        releaseName = "PyAMF-%s" % (version,)
-        self.buildPath = lambda *args: os.sep.join((releaseName,) + args)       
+        self.releaseName = "%s-%s" % (title, version)
+        self.buildPath = lambda *args: os.sep.join((self.releaseName,) + args)       
 
-        # TODO: ticket 756 - update MD5CHECKSUMS file
         # TODO: ticket 665 - parse CHANGES.txt into a simple structure
 
         # build documentation
@@ -100,34 +97,17 @@ class DistributionBuilder(TwistedDistributionBuilder):
         # clean up pycs
         self.clean()
 
-        logging.info("")
-        logging.info("Creating %s.|%s" % (releaseName, "|".join(self.export_types)))
-
         # create tarballs
-        if self.outputDirectory.exists():
-            self.outputDirectory.remove()
+        checksums = self._buildTarballs(version)
 
-        logging.debug("Creating tarball export directory...")
-        self.outputDirectory.createDirectory()
-        
-        for ext in self.export_types:
-            outputFile = self.outputDirectory.child(".".join(
-                [releaseName, ext]))
-            logging.info(" - %s%s%s" % (os.path.basename(self.outputDirectory.path),
-                                        os.sep, os.path.basename(outputFile.path)))
-
-            if ext == "zip":
-                self.tarball = self._createZip(outputFile)
-            else:
-                self.tarball = self._createTarball(outputFile)
-
-            self._addFiles()                           
-            self.tarball.close()
+        # update md5 checksums file
+        md5sums_file = self._updateChecksums(checksums)
 
     def clean(self):
         """
         Clean .pyc and .so files.
         """
+        # todo: use glob instead?
         for files in os.walk(self.rootDirectory.path):
             for f in files[2]:
                 if f.endswith('.pyc') or f.endswith('.so'):
@@ -136,19 +116,90 @@ class DistributionBuilder(TwistedDistributionBuilder):
     def _buildDocumentation(self, doc):
         """
         Build documentation.
+
+        :rtype: `FilePath`
+        :return: File path for HTML build output directory.
         """
         logging.info("Building documentation...")
 
-        sphinx_build = ["sphinx-build", "-b", "html", doc.path,
-                   doc.child("_build").child("html").path]
+        html_output = doc.child("_build").child('html')
+        sphinx_build = ["sphinx-build", "-b", "html", doc.path, html_output.path]
         logging.debug(" ".join(sphinx_build))
         runCommand(sphinx_build)
 
-        # TODO: copy examples
+        # TODO: copy examples      
 
-        html = doc.child("_build").child('html')
+        return html_output
 
-        return html
+    def _buildTarballs(self, version):
+        """
+        Build .zip/.tar.gz/.tar.bz2 files.
+
+        :param version: Distribution version nr.
+        :type version: `str`
+
+        :rtype: `list`
+        :return: tarball checksums
+        """
+        checksums = []
+
+        if self.outputDirectory.exists():
+            self.outputDirectory.remove()
+
+        logging.info("")
+        logging.debug("Creating tarball export directory...")
+        self.outputDirectory.createDirectory()
+
+        logging.info("Creating %s.|%s" % (self.releaseName, "|".join(self.export_types)))
+
+        for ext in self.export_types:
+            outputFile = self.outputDirectory.child(".".join(
+                [self.releaseName, ext]))
+            logging.info("")
+            logging.info(" - %s%s%s" % (os.path.basename(self.outputDirectory.path),
+                                        os.sep, os.path.basename(outputFile.path)))
+
+            # create tarball
+            if ext == "zip":
+                self.tarball = self._createZip(outputFile)
+            else:
+                self.tarball = self._createTarball(outputFile)
+
+            self._addFiles()                           
+            self.tarball.close()
+
+            # get md5
+            md5 = self._createMD5(outputFile.path)
+            checksum_entry = "%s  ./%s/%s\n" % (md5, version,
+                                                os.path.basename(outputFile.path))
+            checksums.append(checksum_entry)
+            logging.debug("\t\t - MD5: " + md5)
+
+        return checksums
+
+    def _updateChecksums(self, checksums):
+        """
+        Update the `MD5SUMS` file.
+
+        :rtype: `FilePath`
+        :return: Location of `MD5SUMS` file
+        """
+        logging.info("")
+        logging.info("Updating MD5SUMS...")
+
+        # download the file
+        original = urllib2.urlopen('http://download.pyamf.org/MD5SUMS')
+        data = original.read().strip() + "\n"
+
+        # create updated file in dist
+        md5sums = self.outputDirectory.child("MD5SUMS")
+        outputFile = open(md5sums.path, "w")
+        outputFile.writelines(data)
+        outputFile.writelines(checksums)
+
+        logging.debug("Created: %s" % md5sums.path)
+
+        return md5sums
 
     def _addFiles(self):
         """
@@ -282,17 +333,18 @@ class BuildTarballsScript(object):
         runCommand(svn_export)
         logging.info('')
 
+        title = "PyAMF"
         sourcePath = export.child("pyamf")
         project = Project(export)
         version = project.getVersion()
-        logging.info("Building PyAMF %s..." % str(version))
+        logging.info("Building %s %s..." % (title, str(version)))
         project.updateVersion(version)
 
         db = DistributionBuilder(export, destination)
-        db.build(version)
+        db.build(title, version)
 
-        logging.info("")
-        logging.info("Removing build directory...")
+        logging.debug("")
+        logging.debug("Removing build directory...")
         workPath.remove()
 
         logging.info("")
