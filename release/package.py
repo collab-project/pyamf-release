@@ -47,8 +47,7 @@ class Project(TwistedProject):
         Replace the existing version numbers in files with the specified version.
         """
         # replace release date in changelog
-        logging.info("")
-        logging.info("Updating changelog...")
+        logging.info("\tUpdating changelog...")
 
         # open change log file
         change_log = self.directory.child("CHANGES.txt")
@@ -75,7 +74,7 @@ class Project(TwistedProject):
         outputFile.writelines(newlines)
 
         # remove the egg_info metadata from setup.cfg
-        logging.info("Updating setup.cfg...")
+        logging.info("\tUpdating setup.cfg...")
         setup_cfg = self.directory.child("setup.cfg")
         config = RawConfigParser()
         config.read(setup_cfg.path)
@@ -143,7 +142,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :rtype: `FilePath`
         :return: File path for HTML build output directory.
         """
-        logging.info("Building documentation...")
+        logging.info("\tBuilding documentation...")
 
         html_output = self.docPath.child("_build").child('html')
         sphinx_build = ["sphinx-build", "-b", "html", self.docPath.path,
@@ -169,16 +168,14 @@ class DistributionBuilder(TwistedDistributionBuilder):
         if self.outputDirectory.exists():
             self.outputDirectory.remove()
 
-        logging.info("")
-        logging.debug("Creating tarball export directory...")
+        logging.debug("\tCreating tarball export directory...")
         self.outputDirectory.createDirectory()
 
-        logging.info("Creating %s.|%s" % (self.releaseName, "|".join(self.export_types)))
+        logging.info("\tCreating tarballs...")
 
         for ext in self.export_types:
             outputFile = self.outputDirectory.child(".".join([self.releaseName, ext]))
-            logging.info("")
-            logging.info(" - %s%s%s" % (os.path.basename(self.outputDirectory.path),
+            logging.info("\t - %s%s%s" % (os.path.basename(self.outputDirectory.path),
                                         os.sep, os.path.basename(outputFile.path)))
 
             # create tarball
@@ -190,12 +187,16 @@ class DistributionBuilder(TwistedDistributionBuilder):
             self._addFiles()                           
             self.tarball.close()
 
+            # show size
+            size = (os.path.getsize(outputFile.path) / 1024) / 1024
+            logging.info("\t   Size: %s MB" % size)
+            
             # get md5
             md5 = self._createMD5(outputFile.path)
             checksum_entry = "%s  ./%s/%s\n" % (md5, version,
                                                 os.path.basename(outputFile.path))
             checksums.append(checksum_entry)
-            logging.debug("\t\t - MD5: " + md5)
+            logging.info("\t   MD5: " + md5)
 
         return checksums
 
@@ -206,8 +207,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :rtype: `FilePath`
         :return: Location of `MD5SUMS` file
         """
-        logging.info("")
-        logging.info("Updating MD5SUMS...")
+        logging.info("\tUpdating MD5SUMS...")
 
         # download the file
         original = urllib2.urlopen('http://download.pyamf.org/MD5SUMS')
@@ -341,11 +341,11 @@ class BuildTarballsScript(object):
         """
         workPath = FilePath(mkdtemp())
         
-        logging.basicConfig(level=logging.DEBUG,
+        logging.basicConfig(level=logging.INFO,
                format='%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s')
         logging.info("Started distribution builder...")
         logging.info('')
-        logging.info("Build directory: %s" % workPath.path)
+        logging.debug("Build directory: %s" % workPath.path)
         logging.info("Tarball export directory: %s" % destination.path)
         logging.info("SVN URL: %s" % checkout)
         logging.info('')
