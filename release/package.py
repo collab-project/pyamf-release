@@ -11,6 +11,7 @@ from hashlib import md5
 from tempfile import mkdtemp
 from tarfile import TarFile
 from zipfile import ZipFile
+from ConfigParser import RawConfigParser
 
 from twisted.python.filepath import FilePath
 from twisted.python._release import runCommand
@@ -34,7 +35,7 @@ class Project(TwistedProject):
                  based on live python modules.
         """
         namespace = {}
-        version_file = self.directory.child("__init__.py")
+        version_file = self.directory.child("pyamf").child("__init__.py")
         execfile(version_file.path, namespace)
 
         return namespace["version"]
@@ -47,6 +48,17 @@ class Project(TwistedProject):
 
         # TODO: ticket 543 - replace release date in changelog
         
+        # remove the egg_info metadata from setup.cfg
+        logging.info("Removing 'egg_info' from setup.cfg...")
+        setup_cfg = self.directory.child("setup.cfg")
+        config = RawConfigParser()
+        config.read(setup_cfg.path)
+        config.remove_section('egg_info')
+
+        # save updated configuration file
+        with open(setup_cfg.path, 'wb') as configfile:
+            config.write(configfile)
+
         #update(self.directory.child("__init__.py"), version)
         #_changeVersionInFile(
         #    oldVersion, version,
@@ -78,7 +90,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         releaseName = "PyAMF-%s" % (version,)
         self.buildPath = lambda *args: os.sep.join((releaseName,) + args)       
 
-        # TODO: ticket 546 - remove the egg_info metadata from setup.cfg
+        # TODO: ticket 756 - update MD5CHECKSUMS file
         # TODO: ticket 665 - parse CHANGES.txt into a simple structure
 
         # build documentation
@@ -131,7 +143,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
                    doc.child("_build").child("html").path]
         logging.debug(" ".join(sphinx_build))
         runCommand(sphinx_build)
-        
+
+        # TODO: copy examples
+
         html = doc.child("_build").child('html')
 
         return html
@@ -269,7 +283,7 @@ class BuildTarballsScript(object):
         logging.info('')
 
         sourcePath = export.child("pyamf")
-        project = Project(sourcePath)
+        project = Project(export)
         version = project.getVersion()
         logging.info("Building PyAMF %s..." % str(version))
         project.updateVersion(version)
@@ -277,7 +291,12 @@ class BuildTarballsScript(object):
         db = DistributionBuilder(export, destination)
         db.build(version)
 
+        logging.info("")
+        logging.info("Removing build directory...")
         workPath.remove()
+
+        logging.info("")
+        logging.info("Distribution builder ready.")
 
 
 __all__ = ["BuildTarballsScript"]
