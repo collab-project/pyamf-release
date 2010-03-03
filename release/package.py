@@ -12,6 +12,7 @@ from hashlib import md5
 from tempfile import mkdtemp
 from tarfile import TarFile
 from zipfile import ZipFile
+from datetime import datetime
 from ConfigParser import RawConfigParser
 
 from twisted.python.filepath import FilePath
@@ -45,10 +46,34 @@ class Project(TwistedProject):
         """
         Replace the existing version numbers in files with the specified version.
         """
-        oldVersion = self.getVersion()
+        # replace release date in changelog
+        logging.info("")
+        logging.info("Updating changelog...")
 
-        # TODO: ticket 543 - replace release date in changelog
-        
+        # open change log file
+        change_log = self.directory.child("CHANGES.txt")
+        changelog = open(change_log.path, "r")
+        now = datetime.now().isoformat()[:10]
+        old_date = "(unreleased)"
+        new_date = "(%s)" % now
+        newlines = []
+        found = 0
+
+        for line in changelog:
+            if found > 0:
+                line = "%s\n" % ("-" * found)
+                found = 0
+
+            if line.find(old_date) > -1:
+                line = line.replace(old_date, new_date)
+                found = len(line) - 1
+
+            newlines.append(line)
+
+        # create updated change log file
+        outputFile = open(change_log.path, "wb")
+        outputFile.writelines(newlines)
+
         # remove the egg_info metadata from setup.cfg
         logging.info("Updating setup.cfg...")
         setup_cfg = self.directory.child("setup.cfg")
@@ -96,10 +121,10 @@ class DistributionBuilder(TwistedDistributionBuilder):
         self.clean()
 
         # create tarballs
-        checksums = self._buildTarballs(version)
+        tarballs = self._buildTarballs(version)
 
         # update md5 checksums file
-        md5sums_file = self._updateChecksums(checksums)
+        md5sums_file = self._updateChecksums(tarballs)
 
     def clean(self):
         """
