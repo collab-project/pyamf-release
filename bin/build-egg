@@ -7,6 +7,6 @@
 
 import sys
 
-from release.package import BuildEggScript
+from release.scripts import BuildEggScript
 
 BuildEggScript().main(sys.argv[1:])

@@ -7,6 +7,6 @@
 
 import sys
 
-from release.scripts import BuildTarballsScript
+from release.scripts import BuildDocumentationScript
 
-BuildTarballsScript().main(sys.argv[1:])
+BuildDocumentationScript().main(sys.argv[1:])

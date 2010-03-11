@@ -7,97 +7,23 @@ Scripts for basic release building in the PyAMF project.
 
 import os, sys
 import logging
-import urllib2
 from glob import glob
 from hashlib import md5
-from tempfile import mkdtemp
-from tarfile import TarFile
 from zipfile import ZipFile
-from datetime import datetime
-from ConfigParser import RawConfigParser
+from urllib2 import urlopen
+from tempfile import mkdtemp
+from tarfile import TarFile, CompressionError
+
+from release import Project
+from release import sizeof_fmt
 
 from twisted.python.filepath import FilePath
 from twisted.python._release import runCommand
-from twisted.python._release import Project as TwistedProject
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
 
 logging.basicConfig(level=logging.INFO,
                format='%(message)s')
-
-
-def sizeof_fmt(num):
-    """
-    get human-readable filesize.
-    """
-    for x in ['bytes','KB','MB','GB','TB']:
-        if num < 1024.0:
-            return "%3.1f %s" % (num, x)
-        num /= 1024.0
-
-
-class Project(TwistedProject):
-    """
-    A representation of a PyAMF project that has a version.
-
-    :ivar directory: A :class`twisted.python.filepath.FilePath` pointing to the base
-        directory of a PyAMF-style Python package. The package should contain
-        a `__init__.py` file, and the root directory contains the LICENSE.txt etc
-        files.
-    """
-
-    def getVersion(self):
-        """
-        :return: :class`pyamf.version.Version` specifying the version number of the project
-                 based on live python modules.
-        """
-        namespace = {}
-        version_file = self.directory.child("pyamf").child("__init__.py")
-        execfile(version_file.path, namespace)
-
-        return namespace["version"]
-
-    def updateVersion(self, version):
-        """
-        Replace the existing version numbers in files with the specified version.
-        """
-        # replace release date in changelog
-        logging.info("\tUpdating changelog...")
-
-        # open change log file
-        change_log = self.directory.child("CHANGES.txt")
-        changelog = open(change_log.path, "r")
-        now = datetime.now().isoformat()[:10]
-        old_date = "(unreleased)"
-        new_date = "(%s)" % now
-        newlines = []
-        found = 0
-
-        for line in changelog:
-            if found > 0:
-                line = "%s\n" % ("-" * found)
-                found = 0
-
-            if line.find(old_date) > -1:
-                line = line.replace(old_date, new_date)
-                found = len(line) - 1
-
-            newlines.append(line)
-
-        # create updated change log file
-        outputFile = open(change_log.path, "wb")
-        outputFile.writelines(newlines)
-
-        # remove the egg_info metadata from setup.cfg
-        logging.info("\tUpdating setup.cfg...")
-        setup_cfg = self.directory.child("setup.cfg")
-        config = RawConfigParser()
-        config.read(setup_cfg.path)
-        config.remove_section('egg_info')
-
-        # save updated configuration file
-        with open(setup_cfg.path, 'wb') as configfile:
-            config.write(configfile)
 
 
 class DistributionBuilder(TwistedDistributionBuilder):
@@ -111,9 +37,10 @@ class DistributionBuilder(TwistedDistributionBuilder):
     - documentation
     """
 
-    export_types = []
     documentation = True
-
+    source = True
+    export_types = []
+    md5sums_url = 'http://download.pyamf.org/MD5SUMS'
     files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
 
@@ -143,8 +70,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
         # create package(s)
         packages = self._buildPackages(version)
 
-        # update md5 checksums file
-        md5sums_file = self._updateChecksums(packages)
+        if self.source:
+            # update md5 checksums file
+            self._updateChecksums(packages)
 
     def _clean(self):
         """
@@ -155,28 +83,10 @@ class DistributionBuilder(TwistedDistributionBuilder):
             for f in files[2]:
                 if f.endswith('.pyc') or f.endswith('.so'):
                     os.unlink(os.path.join(files[0], f))
-                
-    def _buildDocumentation(self):
-        """
-        Build documentation using Sphinx.
-
-        :rtype: `FilePath`
-        :return: File path for HTML build output directory.
-        """
-        logging.info("\tBuilding documentation...")
-
-        html_output = self.docPath.child("_build").child('html')
-        sphinx_build = ["sphinx-build", "-b", "html", self.docPath.path,
-                        html_output.path]
-
-        logging.debug(" ".join(sphinx_build))
-        runCommand(sphinx_build)
-
-        return html_output
 
     def _buildPackages(self, version):
         """
-        Build .zip/.tar.gz/.tar.bz2/.egg packages(s).
+        Build packages(s).
 
         :param version: Distribution version nr.
         :type version: `str`
@@ -203,7 +113,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
             elif ext != "egg":
                 self.package = self._createTarball(outputFile)
 
-            if ext != "egg":
+            if ext != "egg" and self.package != None:
                 self._addFiles()                           
                 self.package.close()
 
@@ -212,20 +122,21 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 self.package = outputFile = self._createEgg()
 
             if outputFile.exists():
-                # show filename
+                # filename
                 logging.info("\t - %s%s%s" % (os.path.basename(self.outputDirectory.path),
                                               os.sep, os.path.basename(outputFile.path)))
 
-                # show size
+                # size
                 size = sizeof_fmt(os.path.getsize(outputFile.path))
                 logging.info("\t   Size: %s" % size)
 
-                # get md5
-                md5 = self._getMD5(outputFile.path)
-                checksum_entry = "%s  ./%s/%s\n" % (md5, version,
+                if self.source:
+                    # md5
+                    checksum = self._getMD5(outputFile.path)
+                    checksum_entry = "%s  ./%s/%s\n" % (checksum, version,
                                                 os.path.basename(outputFile.path))
-                checksums.append(checksum_entry)
-                logging.info("\t   MD5: " + md5)
+                    checksums.append(checksum_entry)
+                    logging.info("\t   MD5: " + checksum)
 
         return checksums
 
@@ -242,7 +153,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
             logging.info("\n\tUpdating MD5SUMS...")
 
             # download the file
-            original = urllib2.urlopen('http://download.pyamf.org/MD5SUMS')
+            original = urlopen(self.md5sums_url)
             data = original.read().strip() + "\n"
 
             # create updated file in dist
@@ -254,20 +165,44 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return md5sums
 
+    def _buildDocumentation(self):
+        """
+        Build documentation using Sphinx.
+
+        :rtype: `FilePath`
+        :return: File path for HTML build output directory.
+        """
+        logging.info("\tBuilding documentation...")
+
+        html_output = self.docPath.child("_build").child('html')
+        sphinx_build = ["sphinx-build", "-b", "html", self.docPath.path,
+                        html_output.path]
+
+        logging.debug(" ".join(sphinx_build))
+        runCommand(sphinx_build)
+
+        return html_output
+
     def _addFiles(self):
         """
-        Add documentation and other files to tarball.
+        Add files to package.
         """
         src = self.rootDirectory
+        files = []
+        doc_output = self.buildPath()
+
+        if self.source:
+            files = self.files
+            doc_output = self.buildPath("doc")
+            logging.debug("\t\t - doc")
 
         # add compiled documentation
-        self.package.add(self.html_docs.path, self.buildPath("doc"))
+        self.package.add(self.html_docs.path, doc_output)
         self.package.add(self.docPath.child("tutorials").child("examples").path,
-                         self.buildPath("doc/tutorials/examples"))
-        logging.debug("\t\t - doc")
+                         doc_output + "/tutorials/examples")
 
-        # add root files
-        for f in self.files:        
+        # add source files
+        for f in files:        
             logging.debug("\t\t - " + f)
             self.package.add(src.child(f).path, self.buildPath(f))       
 
@@ -282,9 +217,13 @@ class DistributionBuilder(TwistedDistributionBuilder):
         comp = outputFile.path[-3:]
         
         if comp == ".gz": comp = "gz"
-        
-        tarball = TarFile.open(outputFile.path, mode='w:' + comp)
-        
+
+        try:
+            tarball = TarFile.open(outputFile.path, mode='w:' + comp)
+        except (CompressionError):
+            logging.error("\t - Warning! Ignoring unsupported export filetype: ." + str(comp))
+            return
+
         return tarball
 
     def _createZip(self, outputFile):
@@ -348,7 +287,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             fd = open(fileName, "rb")
         except IOError:
-            logging.error("Unable to open the file:" + filename)
+            logging.error("Unable to open the file:" + fileName)
             return
 
         content = fd.readlines()
@@ -433,16 +372,6 @@ class TarballsBuilder(DistributionBuilder):
     export_types = ["tar.bz2", "tar.gz", "zip"]
     
 
-class BuildTarballsScript(BuildScript):
-    """
-    A thing for building release tarballs (.zip/.tar.gz/.tar.bz2 files).
-    """
-
-    def __init__(self):
-        self.builder = TarballsBuilder
-        logging.info("Started tarballs builder...")
-
-
 class EggBuilder(DistributionBuilder):
     """
     This knows how to build eggs for PyAMF.
@@ -453,14 +382,15 @@ class EggBuilder(DistributionBuilder):
     documentation = False
 
 
-class BuildEggScript(BuildScript):
+class DocumentationBuilder(DistributionBuilder):
     """
-    A thing for building Python eggs (.egg files).
+    This knows how to build documentation for PyAMF.
     """
 
-    def __init__(self):
-        self.builder = EggBuilder
-        logging.info("Started egg builder...")
+    export_types = ["tar.bz2", "tar.gz", "zip"]
+
+    source = False
 
 
-__all__ = ["BuildTarballsScript", "BuildEggScript"]
+
+__all__ = ["TarballsBuilder", "EggBuilder", "DocumentationBuilder", "BuildScript"]
