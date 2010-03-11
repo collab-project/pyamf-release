@@ -8,6 +8,7 @@ Scripts for basic release building in the PyAMF project.
 import os, sys
 import logging
 import urllib2
+from glob import glob
 from hashlib import md5
 from tempfile import mkdtemp
 from tarfile import TarFile
@@ -20,7 +21,21 @@ from twisted.python._release import runCommand
 from twisted.python._release import Project as TwistedProject
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
-   
+
+logging.basicConfig(level=logging.INFO,
+               format='%(message)s')
+
+
+def sizeof_fmt(num):
+    """
+    get human-readable filesize.
+    """
+    for x in ['bytes','KB','MB','GB','TB']:
+        if num < 1024.0:
+            return "%3.1f %s" % (num, x)
+        num /= 1024.0
+
+
 class Project(TwistedProject):
     """
     A representation of a PyAMF project that has a version.
@@ -89,13 +104,18 @@ class DistributionBuilder(TwistedDistributionBuilder):
     """
     A builder of PyAMF distributions.
 
-    This knows how to build tarballs for PyAMF.
+    This knows how to build:
+    
+    - tarballs
+    - eggs
+    - documentation
     """
+
+    export_types = []
+    documentation = True
 
     files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
-
-    export_types = ["tar.bz2", "tar.gz", "zip"]
 
     def build(self, title, version):
         """
@@ -112,20 +132,21 @@ class DistributionBuilder(TwistedDistributionBuilder):
         self.releaseName = "%s-%s" % (title, version)
         self.buildPath = lambda *args: os.sep.join((self.releaseName,) + args)
 
-        # build documentation
-        self.docPath = self.rootDirectory.child("doc")
-        self.html_docs = self._buildDocumentation()
+        if self.documentation:
+            # build documentation
+            self.docPath = self.rootDirectory.child("doc")
+            self.html_docs = self._buildDocumentation()
 
-        # clean up pycs
-        self.clean()
+            # clean up pycs
+            self._clean()
 
-        # create tarballs
-        tarballs = self._buildTarballs(version)
+        # create package(s)
+        packages = self._buildPackages(version)
 
         # update md5 checksums file
-        md5sums_file = self._updateChecksums(tarballs)
+        md5sums_file = self._updateChecksums(packages)
 
-    def clean(self):
+    def _clean(self):
         """
         Clean .pyc and .so files.
         """
@@ -137,7 +158,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 
     def _buildDocumentation(self):
         """
-        Build documentation.
+        Build documentation using Sphinx.
 
         :rtype: `FilePath`
         :return: File path for HTML build output directory.
@@ -153,50 +174,58 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return html_output
 
-    def _buildTarballs(self, version):
+    def _buildPackages(self, version):
         """
-        Build .zip/.tar.gz/.tar.bz2 files.
+        Build .zip/.tar.gz/.tar.bz2/.egg packages(s).
 
         :param version: Distribution version nr.
         :type version: `str`
 
         :rtype: `list`
-        :return: tarball checksums
+        :return: file checksum(s)
         """
         checksums = []
 
         if self.outputDirectory.exists():
             self.outputDirectory.remove()
 
-        logging.debug("\tCreating tarball export directory...")
+        logging.debug("\tCreating output directory...")
         self.outputDirectory.createDirectory()
 
-        logging.info("\tCreating tarballs...")
+        logging.info("\tCreating package(s)...")
 
         for ext in self.export_types:
             outputFile = self.outputDirectory.child(".".join([self.releaseName, ext]))
-            logging.info("\t - %s%s%s" % (os.path.basename(self.outputDirectory.path),
-                                        os.sep, os.path.basename(outputFile.path)))
 
-            # create tarball
+            # create tarball or zip
             if ext == "zip":
-                self.tarball = self._createZip(outputFile)
-            else:
-                self.tarball = self._createTarball(outputFile)
+                self.package = self._createZip(outputFile)
+            elif ext != "egg":
+                self.package = self._createTarball(outputFile)
 
-            self._addFiles()                           
-            self.tarball.close()
+            if ext != "egg":
+                self._addFiles()                           
+                self.package.close()
 
-            # show size
-            size = (os.path.getsize(outputFile.path) / 1024) / 1024
-            logging.info("\t   Size: %s MB" % size)
-            
-            # get md5
-            md5 = self._createMD5(outputFile.path)
-            checksum_entry = "%s  ./%s/%s\n" % (md5, version,
+            # create egg
+            if ext == "egg":
+                self.package = outputFile = self._createEgg()
+
+            if outputFile.exists():
+                # show filename
+                logging.info("\t - %s%s%s" % (os.path.basename(self.outputDirectory.path),
+                                              os.sep, os.path.basename(outputFile.path)))
+
+                # show size
+                size = sizeof_fmt(os.path.getsize(outputFile.path))
+                logging.info("\t   Size: %s" % size)
+
+                # get md5
+                md5 = self._getMD5(outputFile.path)
+                checksum_entry = "%s  ./%s/%s\n" % (md5, version,
                                                 os.path.basename(outputFile.path))
-            checksums.append(checksum_entry)
-            logging.info("\t   MD5: " + md5)
+                checksums.append(checksum_entry)
+                logging.info("\t   MD5: " + md5)
 
         return checksums
 
@@ -207,19 +236,21 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :rtype: `FilePath`
         :return: Location of `MD5SUMS` file
         """
-        logging.info("\tUpdating MD5SUMS...")
-
-        # download the file
-        original = urllib2.urlopen('http://download.pyamf.org/MD5SUMS')
-        data = original.read().strip() + "\n"
-
-        # create updated file in dist
         md5sums = self.outputDirectory.child("MD5SUMS")
-        outputFile = open(md5sums.path, "w")
-        outputFile.writelines(data)
-        outputFile.writelines(checksums)
 
-        logging.debug("Created: %s" % md5sums.path)
+        if len(checksums) > 0:
+            logging.info("\n\tUpdating MD5SUMS...")
+
+            # download the file
+            original = urllib2.urlopen('http://download.pyamf.org/MD5SUMS')
+            data = original.read().strip() + "\n"
+
+            # create updated file in dist
+            outputFile = open(md5sums.path, "w")
+            outputFile.writelines(data)
+            outputFile.writelines(checksums)
+
+            logging.debug("Created: %s" % md5sums.path)
 
         return md5sums
 
@@ -230,15 +261,15 @@ class DistributionBuilder(TwistedDistributionBuilder):
         src = self.rootDirectory
 
         # add compiled documentation
-        self.tarball.add(self.html_docs.path, self.buildPath("doc"))
-        self.tarball.add(self.docPath.child("tutorials").child("examples").path,
+        self.package.add(self.html_docs.path, self.buildPath("doc"))
+        self.package.add(self.docPath.child("tutorials").child("examples").path,
                          self.buildPath("doc/tutorials/examples"))
         logging.debug("\t\t - doc")
 
         # add root files
         for f in self.files:        
             logging.debug("\t\t - " + f)
-            self.tarball.add(src.child(f).path, self.buildPath(f))       
+            self.package.add(src.child(f).path, self.buildPath(f))       
 
     def _createTarball(self, outputFile):
         """
@@ -250,8 +281,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         comp = outputFile.path[-3:]
         
-        if comp == ".gz":
-            comp = "gz"
+        if comp == ".gz": comp = "gz"
         
         tarball = TarFile.open(outputFile.path, mode='w:' + comp)
         
@@ -270,23 +300,45 @@ class DistributionBuilder(TwistedDistributionBuilder):
             if os.path.isdir(dirpath):
                 for root, dirs, files in os.walk(dirpath):
                     if os.path.basename(root)[0] == '.':
-                        continue # skip hidden directories
+                        # skip hidden directories
+                        continue
                     dirname = root.replace(basedir, '')
                     for f in files:
                         if f[-1] == '~' or f[0] == '.':
                             # skip backup files and all hidden files
                             continue
 
-                        self.tarball.write(root + '/' + f, dirname + '/' + f)
+                        self.package.write(root + '/' + f, dirname + '/' + f)
             else:
-                self.tarball.write(dirpath, os.path.basename(zippath))
+                self.package.write(dirpath, os.path.basename(zippath))
 
         zipfile = ZipFile(outputFile.path, 'w')
         zipfile.add = zip_writer
 
         return zipfile
 
-    def _createMD5(self, fileName, excludeLine="", includeLine=""):
+    def _createEgg(self):
+        """
+        Helper method to create a Python .egg file.
+        """
+        logging.info("\tBuilding egg...")
+
+        build_dir = self.rootDirectory.child("build")
+        build_dir.createDirectory()
+
+        os.chdir(self.rootDirectory.path)
+
+        egg_build = ["python", "setup.py", "bdist_egg", "--dist-dir",
+                     self.outputDirectory.path]
+        logging.debug("\t\t" + " ".join(egg_build))
+        runCommand(egg_build)
+
+        eggs = glob(os.path.join(self.outputDirectory.path, '*.egg'))
+        egg = FilePath(eggs[0])
+
+        return egg
+
+    def _getMD5(self, fileName, excludeLine="", includeLine=""):
         """
         Compute MD5 hash of the specified file.
 
@@ -310,14 +362,13 @@ class DistributionBuilder(TwistedDistributionBuilder):
         return m.hexdigest()
 
 
-class BuildTarballsScript(object):
-    """
-    A thing for building release tarballs. See `BuildAllTarballs`.
-    """
+class BuildScript(object):
+
+    title = "PyAMF"       
 
     def main(self, args):
         """
-        Build all release tarballs.
+        PyAMF build script.
 
         :type args: list of str
         :param args: The command line arguments to process.  This must contain
@@ -328,79 +379,88 @@ class BuildTarballsScript(object):
                      "checkout URL and destination path")
 
         try:
-            self.buildAllTarballs(args[0], FilePath(args[1]))
+            self.build(args[0], FilePath(args[1]))
         except (KeyboardInterrupt):
             pass
 
-    def buildAllTarballs(self, checkout, destination):
+    def build(self, checkout, destination):
         """
-        Build complete tarballs (including documentation) for PyAMF.
+        Export from SVN and update the version nr for PyAMF.
 
         :type checkout: `str`
         :param checkout: The SVN URL from which a pristine source tree
             will be exported.
         :type destination: `FilePath`
-        :param destination: The directory in which tarballs will be placed.
+        :param destination: The directory where the output files will be placed.
         """
-        workPath = FilePath(mkdtemp())
+        self.workPath = FilePath(mkdtemp())
         
-        logging.basicConfig(level=logging.INFO,
-               format='%(message)s')
-        logging.info("Started distribution builder...")
         logging.info('')
-        logging.debug("Build directory: %s" % workPath.path)
-        logging.info("Tarball export directory: %s" % destination.path)
+        logging.debug("Build directory: %s" % self.workPath.path)
+        logging.info("Output directory: %s" % destination.path)
         logging.info("SVN URL: %s" % checkout)
         logging.info('')
 
-        export = workPath.child("export")
-        svn_export = ["svn", "export", checkout, export.path]
+        self.export = self.workPath.child("export")
+        svn_export = ["svn", "export", checkout, self.export.path]
         logging.info("Exporting SVN directory...")
         logging.debug(" ".join(svn_export))
         runCommand(svn_export)
         logging.info('')
+        
+        project = Project(self.export)
+        self.version = project.getVersion()
 
-        title = "PyAMF"
-        sourcePath = export.child("pyamf")
-        project = Project(export)
-        version = project.getVersion()
-        logging.info("Building %s %s..." % (title, str(version)))
-        project.updateVersion(version)
+        logging.info("Building %s %s..." % (self.title, str(self.version)))
+        project.updateVersion(self.version)
 
-        db = DistributionBuilder(export, destination)
-        db.build(title, version)
+        self.db = self.builder(self.export, destination)
+        self.db.build(self.title, self.version)
 
         logging.debug("")
         logging.debug("Removing build directory...")
-        workPath.remove()
+        self.workPath.remove()
 
         logging.info("")
         logging.info("Distribution builder ready.")
 
 
-__all__ = ["BuildTarballsScript"]
-
-
-# OLD
-
-def build_ext(src_dir):
-    cwd = os.getcwd()
-    os.chdir(src_dir)
-
-    args = ["python", "setup.py", "develop"]
-
-    cmd = subprocess.Popen(args)
-    retcode = cmd.wait()
-
-    if retcode != 0:
-        raise RuntimeError, "Error building extension"
-
-    os.chdir(cwd)
-
-def package_project(src_dir, doc_dir, options):
+class TarballsBuilder(DistributionBuilder):
     """
-    Builds tar.gz, tar.bz2, zip from the src_dir's
+    This knows how to build eggs for PyAMF.
     """
-    shutil.rmtree(os.path.join(src_dir, 'build'))
-    shutil.rmtree(os.path.join(src_dir, '%s.egg-info' % options.name))
 
+    export_types = ["tar.bz2", "tar.gz", "zip"]
+    
+
+class BuildTarballsScript(BuildScript):
+    """
+    A thing for building release tarballs (.zip/.tar.gz/.tar.bz2 files).
+    """
+
+    def __init__(self):
+        self.builder = TarballsBuilder
+        logging.info("Started tarballs builder...")
+
+
+class EggBuilder(DistributionBuilder):
+    """
+    This knows how to build eggs for PyAMF.
+    """
+
+    export_types = ["egg"]
+
+    documentation = False
+
+
+class BuildEggScript(BuildScript):
+    """
+    A thing for building Python eggs (.egg files).
+    """
+
+    def __init__(self):
+        self.builder = EggBuilder
+        logging.info("Started egg builder...")
+
+
+__all__ = ["BuildTarballsScript", "BuildEggScript"]
