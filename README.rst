@@ -6,8 +6,8 @@ This is a collection of tools used to release PyAMF.
 Features:
 
 - downloads and grabs a source tree tarball from Github (http://github.com/hydralabs/pyamf/tarball/release-0.6b2 for example)
-- updates the changelog
-- updates setup.cfg
+- updates the release date in the changelog
+- removes the egg_info metadata from setup.cfg
 - builds the documentation and includes the examples
 - exports packages: .zip/.tar.gz/.tar.bz2/.egg
 - downloads the MD5SUMS file and appends the new MD5 entries for the tarballs

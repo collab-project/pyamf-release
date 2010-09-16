@@ -10,8 +10,8 @@ import logging
 from glob import glob
 from hashlib import md5
 from zipfile import ZipFile
-from urllib2 import urlopen
 from tempfile import mkdtemp
+from urllib2 import urlopen, HTTPError
 from tarfile import TarFile, CompressionError, open as opentar
 
 from release import Project
@@ -22,7 +22,7 @@ from twisted.python._release import runCommand
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                format='%(message)s')
 
 
@@ -154,13 +154,16 @@ class DistributionBuilder(TwistedDistributionBuilder):
         md5sums = self.outputDirectory.child("MD5SUMS")
 
         if len(checksums) > 0:
-            logging.info("\n\tUpdating MD5SUMS...")
+            try:
+                # download the file
+                original = urlopen(self.md5sums_url)
+            except HTTPError:
+                return
 
-            # download the file
-            original = urlopen(self.md5sums_url)
             data = original.read().strip() + "\n"
 
             # create updated file in dist
+            logging.info("\n\tUpdating MD5SUMS...")
             outputFile = open(md5sums.path, "w")
             outputFile.writelines(data)
             outputFile.writelines(checksums)
@@ -204,6 +207,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         # add compiled documentation
         self.package.add(self.html_docs.path, doc_output)
+        # add examples
         self.package.add(self.docPath.child("tutorials").child("examples").path,
                          doc_output + "/tutorials/examples")
 
@@ -211,6 +215,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         for f in files:        
             logging.debug("\t\t - " + f)
             self.package.add(src.child(f).path, self.buildPath(f))       
+
 
     def _createTarball(self, outputFile):
         """
