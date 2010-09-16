@@ -13,7 +13,7 @@ from release.package import BuildScript
 
 class BuildTarballsScript(BuildScript):
     """
-    A thing for building release tarballs (.zip/.tar.gz/.tar.bz2 files).
+    Script for building release tarballs (.zip/.tar.gz/.tar.bz2 files).
     """
 
     def __init__(self):
@@ -23,7 +23,7 @@ class BuildTarballsScript(BuildScript):
 
 class BuildEggScript(BuildScript):
     """
-    A thing for building Python eggs (.egg files).
+    Script for building Python eggs (.egg files).
     """
 
     def __init__(self):
@@ -33,7 +33,7 @@ class BuildEggScript(BuildScript):
 
 class BuildDocumentationScript(BuildScript):
     """
-    A thing for building the Sphinx documentation (.zip/.tar.gz/.tar.bz2/.pdf) files).
+    Script for building the Sphinx documentation (.zip/.tar.gz/.tar.bz2/.pdf) files).
     """
 
     def __init__(self):

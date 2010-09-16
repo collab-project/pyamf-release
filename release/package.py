@@ -12,7 +12,7 @@ from hashlib import md5
 from zipfile import ZipFile
 from urllib2 import urlopen
 from tempfile import mkdtemp
-from tarfile import TarFile, CompressionError
+from tarfile import TarFile, CompressionError, open as opentar
 
 from release import Project
 from release import sizeof_fmt
@@ -22,7 +22,7 @@ from twisted.python._release import runCommand
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                format='%(message)s')
 
 
@@ -43,6 +43,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
     md5sums_url = 'http://download.pyamf.org/MD5SUMS'
     files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
+
 
     def build(self, title, version):
         """
@@ -74,6 +75,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
             # update md5 checksums file
             self._updateChecksums(packages)
 
+
     def _clean(self):
         """
         Clean .pyc and .so files.
@@ -83,6 +85,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
             for f in files[2]:
                 if f.endswith('.pyc') or f.endswith('.so'):
                     os.unlink(os.path.join(files[0], f))
+
 
     def _buildPackages(self, version):
         """
@@ -140,6 +143,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return checksums
 
+
     def _updateChecksums(self, checksums):
         """
         Update the `MD5SUMS` file.
@@ -165,6 +169,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return md5sums
 
+
     def _buildDocumentation(self):
         """
         Build documentation using Sphinx.
@@ -182,6 +187,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         runCommand(sphinx_build)
 
         return html_output
+
 
     def _addFiles(self):
         """
@@ -226,6 +232,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return tarball
 
+
     def _createZip(self, outputFile):
         """
         Helper method to create a ZIP file.
@@ -256,6 +263,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         return zipfile
 
+
     def _createEgg(self):
         """
         Helper method to create a Python .egg file.
@@ -276,6 +284,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         egg = FilePath(eggs[0])
 
         return egg
+
 
     def _getMD5(self, fileName, excludeLine="", includeLine=""):
         """
@@ -302,33 +311,35 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
 
 class BuildScript(object):
+    """
+    PyAMF build script.
+    """
 
     title = "PyAMF"       
 
     def main(self, args):
         """
-        PyAMF build script.
-
         :type args: list of str
         :param args: The command line arguments to process.  This must contain
-            two strings: the checkout URL and the path to the destination directory.
+            two strings: the source URL and the path to the destination directory.
         """
         if len(args) != 2:
             sys.exit("Must specify two arguments: "
-                     "checkout URL and destination path")
+                     "source URL and destination path")
 
         try:
             self.build(args[0], FilePath(args[1]))
         except (KeyboardInterrupt):
             pass
 
+
     def build(self, checkout, destination):
         """
-        Export from SVN and update the version nr for PyAMF.
+        Download source tree tarball from Github and update the version nr for PyAMF.
 
         :type checkout: `str`
-        :param checkout: The SVN URL from which a pristine source tree
-            will be exported.
+        :param checkout: The source URL from which a pristine source tree
+            tarball will be downloaded.
         :type destination: `FilePath`
         :param destination: The directory where the output files will be placed.
         """
@@ -337,14 +348,23 @@ class BuildScript(object):
         logging.info('')
         logging.debug("Build directory: %s" % self.workPath.path)
         logging.info("Output directory: %s" % destination.path)
-        logging.info("SVN URL: %s" % checkout)
+        logging.info("Source URL: %s" % checkout)
         logging.info('')
 
+        logging.info("Downloading source tree tarball...")
+        sourceFile = self.workPath.child("source.tar.gz")
+        tarball = urlopen(checkout).read()
+        o = open(sourceFile.path , "w")
+        o.write(tarball)
+        o.close()
+
+        logging.info("Extracting source tree tarball...")
+        sourceDir = self.workPath.child("source")
         self.export = self.workPath.child("export")
-        svn_export = ["svn", "export", checkout, self.export.path]
-        logging.info("Exporting SVN directory...")
-        logging.debug(" ".join(svn_export))
-        runCommand(svn_export)
+        tar = opentar(sourceFile.path, mode='r:*')
+        tar.extractall(sourceDir.path)
+        dest = sourceDir.child(sourceDir.listdir()[0])
+        dest.moveTo(self.export)
         logging.info('')
         
         project = Project(self.export)
