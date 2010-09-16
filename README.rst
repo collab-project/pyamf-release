@@ -1,1 +1,3 @@
-Release tools for PyAMF.
+Release tools for PyAMF_.
+
+.. _PyAMF: http://pyamf.org
