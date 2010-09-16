@@ -78,7 +78,9 @@ class Project(TwistedProject):
         setup_cfg = self.directory.child("setup.cfg")
         config = RawConfigParser()
         config.read(setup_cfg.path)
-        config.remove_section('egg_info')
+
+        if config.has_section('egg_info'):
+            config.remove_section('egg_info')
 
         # save updated configuration file
         with open(setup_cfg.path, 'wb') as configfile:
