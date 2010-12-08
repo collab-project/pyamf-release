@@ -1,22 +1,75 @@
-Release tools for PyAMF_
-========================
+Release tools for PyAMF
+=======================
 
-This is a collection of tools used to release PyAMF.
+This is a collection of tools used to create a release of the PyAMF_ library.
 
-Features:
+.. contents:: :backlinks: entry
+
+
+Overview
+--------
 
 - downloads and grabs a source tree tarball from Github (http://github.com/hydralabs/pyamf/tarball/release-0.6b2 for example)
 - updates the release date in the changelog
-- removes the egg_info metadata from setup.cfg
+- removes the `egg_info` metadata from setup.cfg
 - builds the documentation and includes the examples
-- exports packages: .zip/.tar.gz/.tar.bz2/.egg
-- downloads the MD5SUMS file and appends the new MD5 entries for the tarballs
+- exports packages: `.zip/.tar.gz/.tar.bz2/.egg`
+- downloads the `MD5SUMS` file and appends the new MD5 entries for the tarballs
+
+Dependencies
+------------
+
+To use this tool you'll need the following software pre-installed on your system:
+
+===========================  ========
+Name                         Version
+===========================  ========
+Python_                      2.5
+Twisted_                     8.0
+===========================  ========
+
+To build the documentation you need the following software:
+
+===========================  ========
+Name                         Version
+===========================  ========
+Sphinx_                      1.0
+Beam_ theme                  any
+`sphinxcontrib.epydoc`_      any
+===========================  ========
 
 
-build-tarballs
---------------
+Installation
+------------
 
-Start it with::
+#. This project uses Git_ for source control. Grab the source::
+
+    git clone git://github.com/collab-project/pyamf-release.git
+
+#. Make sure the following environment variables are set:
+  
+  =========================  ====================================
+  Name                       Description
+  =========================  ====================================
+  `SOURCE`                   Path to Github tarball
+  `DESTINATION`              Where to place the output file(s)
+  =========================  ====================================
+
+Build
+=====
+
+There are scripts to build a set of archives, a standalone egg file and the documentation.
+
+Archives
+--------
+
+This generates 3 archives in the specified `DESTINATION` directory:
+
+- PyAMF-x.x.x.tar.bz2
+- PyAMF-x.x.x.tar.gz
+- PyAMF-x.x.x.tar.zip
+
+Start the tool with::
 
   export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
   export DESTINATION=dist
@@ -54,10 +107,12 @@ Currently produces::
   Distribution builder ready.
 
 
-build-egg
----------
+Egg
+---
 
-Start it with::
+This creates a standalone Python Egg file, eg. `PyAMF-0.6b2-py2.6-macosx-10.5-fat3.egg`.
+
+Start the tool with::
 
   export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
   export DESTINATION=dist
@@ -88,10 +143,16 @@ Currently produces::
   
   Distribution builder ready.
 
-build-doc
----------
+Documentation
+-------------
 
-Start it with::
+This generates 3 archives in the specified `DESTINATION` directory:
+
+- PyAMF-x.x.x.tar.bz2
+- PyAMF-x.x.x.tar.gz
+- PyAMF-x.x.x.tar.zip
+
+Start the tool with::
   
   export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
   export DESTINATION=dist
@@ -125,3 +186,9 @@ Currently produces::
 
 
 .. _PyAMF: http://pyamf.org
+.. _Sphinx:   http://sphinx.pocoo.org
+.. _sphinxcontrib.epydoc: http://packages.python.org/sphinxcontrib-epydoc/
+.. _Beam:     http://github.com/collab-project/sphinx-themes/tree/master/source/themes/beam
+.. _Twisted:  http://twistedmatrix.com
+.. _Python:         http://python.org
+.. _Git:      http://git-scm.com
