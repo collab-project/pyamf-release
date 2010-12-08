@@ -46,14 +46,10 @@ Installation
 
     git clone git://github.com/collab-project/pyamf-release.git
 
-#. Make sure the following environment variables are set:
-  
-  =========================  ====================================
-  Name                       Description
-  =========================  ====================================
-  `SOURCE`                   Path to Github tarball
-  `DESTINATION`              Where to place the output file(s)
-  =========================  ====================================
+#. Install the package::
+
+    sudo python setup.py develop
+
 
 Build
 =====
