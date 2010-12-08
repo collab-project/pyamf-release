@@ -34,7 +34,6 @@ To build the documentation you need the following software:
 Name                         Version
 ===========================  ========
 Sphinx_                      1.0
-Beam_ theme                  any
 `sphinxcontrib.epydoc`_      any
 ===========================  ========
 

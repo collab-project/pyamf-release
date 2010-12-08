@@ -18,7 +18,7 @@ from release import Project
 from release import sizeof_fmt
 
 from twisted.python.filepath import FilePath
-from twisted.python._release import runCommand
+from twisted.python._release import runCommand, CommandFailed
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
 
@@ -187,7 +187,11 @@ class DistributionBuilder(TwistedDistributionBuilder):
                         html_output.path]
 
         logging.debug(" ".join(sphinx_build))
-        runCommand(sphinx_build)
+        
+        try:
+            runCommand(sphinx_build)
+        except CommandFailed, e:
+            raise Exception("Error encountered while building documentation with Sphinx:\n\n%s" % e[2])
 
         return html_output
 
@@ -231,7 +235,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         try:
             tarball = TarFile.open(outputFile.path, mode='w:' + comp)
-        except (CompressionError):
+        except CompressionError:
             logging.error("\t - Warning! Ignoring unsupported export filetype: ." + str(comp))
             return
 
