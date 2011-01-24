@@ -38,9 +38,11 @@ class DistributionBuilder(TwistedDistributionBuilder):
     """
 
     documentation = True
+    examples = False
     source = True
+    checksums = False
     export_types = []
-    md5sums_url = 'http://download.pyamf.org/MD5SUMS'
+    checksums_url = 'http://download.pyamf.org/MD5SUMS'
     files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
 
@@ -71,7 +73,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         # create package(s)
         packages = self._buildPackages(version)
 
-        if self.source:
+        if self.source and self.checksums:
             # update md5 checksums file
             self._updateChecksums(packages)
 
@@ -154,16 +156,17 @@ class DistributionBuilder(TwistedDistributionBuilder):
         md5sums = self.outputDirectory.child("MD5SUMS")
 
         if len(checksums) > 0:
+            logging.info("\n\tUpdating MD5SUMS...")
+
             try:
                 # download the file
-                original = urlopen(self.md5sums_url)
+                original = urlopen(self.checksums_url)
             except HTTPError:
                 return
 
             data = original.read().strip() + "\n"
 
             # create updated file in dist
-            logging.info("\n\tUpdating MD5SUMS...")
             outputFile = open(md5sums.path, "w")
             outputFile.writelines(data)
             outputFile.writelines(checksums)
@@ -181,6 +184,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :return: File path for HTML build output directory.
         """
         logging.info("\tBuilding documentation...")
+
+        if self.examples:
+            logging.info("\tIncluding examples...")
 
         html_output = self.docPath.child("_build").child('html')
         sphinx_build = ["sphinx-build", "-b", "html", self.docPath.path,
@@ -211,9 +217,11 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         # add compiled documentation
         self.package.add(self.html_docs.path, doc_output)
-        # add examples
-        self.package.add(self.docPath.child("tutorials").child("examples").path,
-                         doc_output + "/tutorials/examples")
+
+        if self.examples:
+            # add examples
+            self.package.add(self.docPath.child("tutorials").child("examples").path,
+                             doc_output + "/tutorials/examples")
 
         # add source files
         for f in files:        
@@ -399,7 +407,7 @@ class TarballsBuilder(DistributionBuilder):
     """
 
     export_types = ["tar.bz2", "tar.gz", "zip"]
-    
+
 
 class EggBuilder(DistributionBuilder):
     """
@@ -419,7 +427,7 @@ class DocumentationBuilder(DistributionBuilder):
     export_types = ["tar.bz2", "tar.gz", "zip"]
 
     source = False
-
+    examples = True
 
 
 __all__ = ["TarballsBuilder", "EggBuilder", "DocumentationBuilder", "BuildScript"]

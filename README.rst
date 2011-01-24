@@ -41,7 +41,7 @@ Sphinx_                      1.0
 Installation
 ------------
 
-#. This project uses Git_ for source control. Grab the source::
+#. This tool uses Git_ for source control. Grab the source::
 
     git clone git://github.com/collab-project/pyamf-release.git
 
@@ -97,8 +97,6 @@ Currently produces::
   	   Size: 11.7 MB
   	   MD5: 87b6d50d417abc9f2902c1cee650785d
   
-  	Updating MD5SUMS...
-  
   Distribution builder ready.
 
 
@@ -134,8 +132,6 @@ Currently produces::
   	   Size: 441.8 KB
   	   MD5: ba2bef6863593085ed934fd29340a3b6
   
-  	Updating MD5SUMS...
-  
   Distribution builder ready.
 
 Documentation
@@ -169,6 +165,7 @@ Currently produces::
   	Updating changelog...
   	Updating setup.cfg...
   	Building documentation...
+    Including examples...
   	Creating package(s)...
   	 - dist/PyAMF-0.6b2.tar.bz2
   	   Size: 5.6 MB
