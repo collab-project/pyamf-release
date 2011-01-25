@@ -66,7 +66,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
         if self.documentation:
             # build documentation
             self.docPath = self.rootDirectory.child("doc")
-            self.html_docs = self._buildDocumentation()
+            self.html_docs = self._buildMainDocumentation()
+            self.api_docs = self._buildAPIDocumentation()
 
             # clean up pycs
             self._clean()
@@ -83,7 +84,6 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         Clean .pyc and .so files.
         """
-        # todo: use glob instead?
         for files in os.walk(self.rootDirectory.path):
             for f in files[2]:
                 if f.endswith('.pyc') or f.endswith('.so'):
@@ -177,16 +177,16 @@ class DistributionBuilder(TwistedDistributionBuilder):
         return md5sums
 
 
-    def _buildDocumentation(self):
+    def _buildMainDocumentation(self):
         """
-        Build documentation using Sphinx.
+        Build main documentation with Sphinx.
 
         :rtype: `FilePath`
         :return: File path for HTML build output directory.
         """
         self._setupTheme()
 
-        logging.info("\tBuilding documentation...")
+        logging.info("\tBuilding main documentation...")
 
         if self.examples:
             logging.info("\tIncluding examples...")
@@ -201,7 +201,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
             runCommand(sphinx_build)
         except CommandFailed, e:
             logging.info("")
-            raise Exception("Error encountered while building documentation with Sphinx:\n\n%s" % e[2])
+            raise Exception("Error building main documentation with Sphinx:\n\n%s" % e[2])
 
         return html_output
 
@@ -210,17 +210,17 @@ class DistributionBuilder(TwistedDistributionBuilder):
         """
         Download and setup the theme.
         """
-        logging.info("\tDownloading theme tarball...")
+        logging.info("\tBuilding theme...")
         
         try:
             tarball = urlopen(self.theme_url).read()
         except HTTPError:
-            raise Exception("Error while downloading theme from %s" % self.theme_url)
+            raise Exception("Error downloading theme from %s" % self.theme_url)
 
         workPath = FilePath(mkdtemp())
         sourceFile = workPath.child("theme.tar.gz")
 
-        # change dir to fix issue with themes
+        # change dir to fix issue with sphinx & themes
         os.chdir(self.docPath.path)
 
         o = open(sourceFile.path , "w")
@@ -237,6 +237,33 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 dest = self.docPath.child("themes")
                 theme.moveTo(dest)
                 break
+
+
+    def _buildAPIDocumentation(self):
+        """
+        Build API documentation with Epydoc.
+
+        :rtype: `FilePath`
+        :return: File path for HTML build output directory.
+        """
+
+        logging.info("\tBuilding API documentation...")
+        
+        html_output = self.docPath.child("_build").child('html').child('api')
+        os.chdir(self.rootDirectory.path)
+        epydoc_build = ["epydoc", "--config", "setup.cfg", "--debug",
+                        "--output", html_output.path, "--simple-term"]
+
+        logging.debug(" ".join(epydoc_build))
+        
+        try:
+            runCommand(epydoc_build)
+        except CommandFailed, e:
+            print("\nError building API documentation with Epydoc:\n\n%s" % e[2])
+            logging.error("\tError building API documentation, check Epydoc output. Skipping...")
+            logging.error("")
+
+        return html_output
 
 
     def _addFiles(self):
@@ -435,7 +462,7 @@ class BuildScript(object):
         self.workPath.remove()
 
         logging.info("")
-        logging.info("Distribution builder ready.")
+        logging.info("Builder ready.")
 
 
 class TarballsBuilder(DistributionBuilder):
