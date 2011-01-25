@@ -43,6 +43,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
     checksums = False
     export_types = []
     checksums_url = 'http://download.pyamf.org/MD5SUMS'
+    theme_url = 'https://github.com/collab-project/sphinx-themes/tarball/master'
     files = ["LICENSE.txt", "CHANGES.txt", "setup.py", "setup.cfg",
              "ez_setup.py", "pyamf", "cpyamf"]
 
@@ -183,6 +184,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
         :rtype: `FilePath`
         :return: File path for HTML build output directory.
         """
+        self._setupTheme()
+
         logging.info("\tBuilding documentation...")
 
         if self.examples:
@@ -197,9 +200,43 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             runCommand(sphinx_build)
         except CommandFailed, e:
+            logging.info("")
             raise Exception("Error encountered while building documentation with Sphinx:\n\n%s" % e[2])
 
         return html_output
+
+
+    def _setupTheme(self):
+        """
+        Download and setup the theme.
+        """
+        logging.info("\tDownloading theme tarball...")
+        
+        try:
+            tarball = urlopen(self.theme_url).read()
+        except HTTPError:
+            raise Exception("Error while downloading theme from %s" % self.theme_url)
+
+        workPath = FilePath(mkdtemp())
+        sourceFile = workPath.child("theme.tar.gz")
+
+        # change dir to fix issue with themes
+        os.chdir(self.docPath.path)
+
+        o = open(sourceFile.path , "w")
+        o.write(tarball)
+        o.close()
+        tar = opentar(sourceFile.path, mode='r:*')
+        tar.extractall(workPath.path)
+
+        theme = None
+        for d in workPath.listdir():
+            theme = workPath.child(d)
+            if theme.isdir():
+                theme = theme.child("source").child("themes")
+                dest = self.docPath.child("themes")
+                theme.moveTo(dest)
+                break
 
 
     def _addFiles(self):

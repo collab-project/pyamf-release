@@ -9,12 +9,15 @@ This is a collection of tools used to create a release of the PyAMF_ library.
 Overview
 --------
 
-- downloads and grabs a source tree tarball from Github (http://github.com/hydralabs/pyamf/tarball/release-0.6b2 for example)
+- downloads and grabs a source tree tarball from Github (http://github.com/hydralabs/pyamf/tarball/release-0.6 for example)
 - updates the release date in the changelog
 - removes the `egg_info` metadata from setup.cfg
-- builds the documentation and includes the examples
+- builds the documentation and optionally include the examples
 - exports packages: `.zip/.tar.gz/.tar.bz2/.egg`
-- downloads the `MD5SUMS` file and appends the new MD5 entries for the tarballs
+
+Optional (disabled by default):
+- download the `MD5SUMS` file and appends the new MD5 entries for the tarballs
+
 
 Dependencies
 ------------
@@ -66,7 +69,7 @@ This generates 3 archives in the specified `DESTINATION` directory:
 
 Start the tool with::
 
-  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6
   export DESTINATION=dist
 
   bin/build-tarballs $SOURCE $DESTINATION
@@ -77,25 +80,27 @@ Currently produces::
   Started tarballs builder...
 
   Output directory: /Users/thijstriemstra/Sites/projects/opensource/pyamf-release/dist
-  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6
 
   Downloading source tarball...
   Extracting tarball...
 
-  Building PyAMF 0.6b2...
-  	Updating changelog...
-  	Updating setup.cfg...
-  	Building documentation...
-  	Creating package(s)...
-  	 - dist/PyAMF-0.6b2.tar.bz2
-  	   Size: 5.8 MB
-  	   MD5: b4510dad04a96fc7651f3ef26e8f8b9c
-  	 - dist/PyAMF-0.6b2.tar.gz
-  	   Size: 6.1 MB
-  	   MD5: b86026b07a80cc6d159112344647479d
-  	 - dist/PyAMF-0.6b2.zip
-  	   Size: 11.7 MB
-  	   MD5: 87b6d50d417abc9f2902c1cee650785d
+  Building PyAMF 0.6...
+	Updating changelog...
+	Updating setup.cfg...
+	Downloading theme tarball...
+	Building documentation...
+	Creating package(s)...
+	 - dist/PyAMF-0.6.tar.bz2
+	   Size: 1.3 MB
+	   MD5: 3729a41e78637d6aa8583113960c70cb
+	 - dist/PyAMF-0.6.tar.gz
+	   Size: 1.5 MB
+	   MD5: ac499d9d2faf11c5df0199559a949985
+	 - dist/PyAMF-0.6.zip
+	   Size: 5.2 MB
+	   MD5: 1c367882e965bab831babd4d43742a1d
+
   
   Distribution builder ready.
 
@@ -103,11 +108,11 @@ Currently produces::
 Egg
 ---
 
-This creates a standalone Python Egg file, eg. `PyAMF-0.6b2-py2.6-macosx-10.5-fat3.egg`.
+This creates a standalone Python Egg file, eg. `PyAMF-0.6-py2.7-linux-x86_64.egg`.
 
 Start the tool with::
 
-  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6
   export DESTINATION=dist
   
   bin/build-egg $SOURCE $DESTINATION
@@ -118,19 +123,19 @@ Currently produces::
   Started egg builder...
   
   Output directory: /Users/thijstriemstra/Sites/projects/opensource/pyamf-release/dist
-  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6
   
   Downloading source tarball...
   Extracting tarball...
   
-  Building PyAMF 0.6b2...
+  Building PyAMF 0.6...
   	Updating changelog...
   	Updating setup.cfg...
   	Creating package(s)...
   	Building egg...
-  	 - dist/PyAMF-0.6b2-py2.6-macosx-10.5-fat3.egg
-  	   Size: 441.8 KB
-  	   MD5: ba2bef6863593085ed934fd29340a3b6
+  	 - dist/PyAMF-0.6-py2.7-linux-x86_64.egg
+  	   Size: 745.9 KB
+  	   MD5: 50f14645ef99069b9257b2dbc7ae3028
   
   Distribution builder ready.
 
@@ -145,7 +150,7 @@ This generates 3 archives in the specified `DESTINATION` directory:
 
 Start the tool with::
   
-  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  export SOURCE=http://github.com/hydralabs/pyamf/tarball/release-0.6
   export DESTINATION=dist
   
   bin/build-doc $SOURCE $DESTINATION
@@ -156,23 +161,25 @@ Currently produces::
   Started documentation builder...
   
   Output directory: /Users/thijstriemstra/Sites/projects/opensource/pyamf-release/dist
-  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6b2
+  Source tarball URL: http://github.com/hydralabs/pyamf/tarball/release-0.6
   
   Downloading source tarball...
   Extracting tarball...
   
-  Building PyAMF 0.6b2...
-  	Updating changelog...
-  	Updating setup.cfg...
-  	Building documentation...
-    Including examples...
-  	Creating package(s)...
-  	 - dist/PyAMF-0.6b2.tar.bz2
-  	   Size: 5.6 MB
-  	 - dist/PyAMF-0.6b2.tar.gz
-  	   Size: 5.9 MB
-  	 - dist/PyAMF-0.6b2.zip
-  	   Size: 10.3 MB
+  Building PyAMF 0.6...
+	Updating changelog...
+	Updating setup.cfg...
+	Downloading theme tarball...
+	Building documentation...
+	Including examples...
+	Creating package(s)...
+	 - dist/PyAMF-0.6.tar.bz2
+	   Size: 5.3 MB
+	 - dist/PyAMF-0.6.tar.gz
+	   Size: 5.5 MB
+	 - dist/PyAMF-0.6.zip
+	   Size: 8.8 MB
+
   
   Distribution builder ready.
 
