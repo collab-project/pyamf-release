@@ -9,15 +9,22 @@ import os, sys
 import logging
 from glob import glob
 from hashlib import md5
-from zipfile import ZipFile
+from time import localtime
 from tempfile import mkdtemp
 from urllib2 import urlopen, HTTPError
 from tarfile import TarFile, CompressionError, open as opentar
+from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED, ZIP_STORED
+try:
+    import zlib
+    compression = ZIP_DEFLATED
+except:
+    compression = ZIP_STORED
 
 from release import Project
 from release import sizeof_fmt
 
 from twisted.python.filepath import FilePath
+from twisted.python.zippath import ZipArchive
 from twisted.python._release import runCommand, CommandFailed
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
@@ -111,8 +118,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
         logging.info("\tCreating package(s)...")
 
         for ext in self.export_types:
-            outputFile = self.outputDirectory.child(".".join([self.releaseName, ext]))
-
+            outputFile = self.outputDirectory.child(".".join([
+                                                    self.releaseName, ext]))
             # create tarball or zip
             if ext == "zip":
                 self.package = self._createZip(outputFile)
@@ -120,7 +127,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 self.package = self._createTarball(outputFile)
 
             if ext != "egg" and self.package != None:
-                self._addFiles()                           
+                self._addFiles()
                 self.package.close()
 
             # create egg
@@ -284,8 +291,9 @@ class DistributionBuilder(TwistedDistributionBuilder):
 
         if self.examples:
             # add examples
-            self.package.add(self.docPath.child("tutorials").child("examples").path,
-                             doc_output + "/tutorials/examples")
+            org = self.docPath.child("tutorials").child("examples").path
+            target = doc_output + "/tutorials/examples"
+            self.package.add(org, target)
 
         # add source files
         for f in files:        
@@ -293,11 +301,65 @@ class DistributionBuilder(TwistedDistributionBuilder):
             self.package.add(src.child(f).path, self.buildPath(f))       
 
 
+    def _createZip(self, outputFile):
+        """
+        Helper method to create a ZIP file.
+
+        :param outputFile: The target location for the new zip file.
+        :type outputFile: `FilePath`
+        :return: `ZipFile`
+        """
+        def zip_writer(dirpath, zippath):
+            basedir = os.path.dirname(dirpath) + os.sep
+            entry = ZipInfo()
+            entry.compress_type = compression
+
+            if os.path.isdir(dirpath):
+                for root, dirs, files in os.walk(dirpath):
+                    if os.path.basename(root).startswith('.'):
+                        # skip hidden directories
+                        continue
+                    dirname = root.replace(basedir, '')
+                    for f in files:
+                        if f[-1] == '~' or f.startswith('.'):
+                            # skip backup files and all hidden files
+                            continue
+                        src = root + '/' + f
+                        entry = ZipInfo()
+                        entry.compress_type = compression
+                        entry.filename = dirname + '/' + f
+                        entry.date_time = localtime(os.path.getmtime(src))[:6]
+
+                        # hacky
+                        if dirname.startswith("html"):
+                            if self.source == True:
+                                entry.filename = dirname.replace('html', 'doc', 1) + "/" + f
+                            else:
+                                entry.filename = dirname.replace('html/', '', 1) + "/" + f
+                                entry.filename = entry.filename.replace('html/', '', 1)
+                        if entry.filename.startswith("examples"):
+                            entry.filename = "tutorials/" + entry.filename
+
+                        file_data = open( src, 'rb').read()
+                        self.package.writestr(entry, file_data)
+            else:
+                # top files
+                entry.date_time = localtime(os.path.getmtime(dirpath))[:6]
+                entry.filename = os.path.basename(zippath)
+                file_data = open( dirpath, 'rb').read()
+                self.package.writestr(entry, file_data)
+
+        zipfile = ZipFile(outputFile.path, 'w')
+        zipfile.add = zip_writer
+
+        return zipfile
+
+
     def _createTarball(self, outputFile):
         """
         Helper method to create a tarball file.
 
-        :param outputFile: The location to use for the new tar file.
+        :param outputFile: The target location for the new tar file.
         :type outputFile: `FilePath`
         :return: compressed `TarFile`
         """
@@ -312,37 +374,6 @@ class DistributionBuilder(TwistedDistributionBuilder):
             return
 
         return tarball
-
-
-    def _createZip(self, outputFile):
-        """
-        Helper method to create a ZIP file.
-
-        :param outputFile: The location of the zip file to create.
-        :type outputFile: `FilePath`
-        :return: `ZipFile`
-        """
-        def zip_writer(dirpath, zippath):
-            basedir = os.path.dirname(dirpath) + '/'
-            if os.path.isdir(dirpath):
-                for root, dirs, files in os.walk(dirpath):
-                    if os.path.basename(root)[0] == '.':
-                        # skip hidden directories
-                        continue
-                    dirname = root.replace(basedir, '')
-                    for f in files:
-                        if f[-1] == '~' or f[0] == '.':
-                            # skip backup files and all hidden files
-                            continue
-
-                        self.package.write(root + '/' + f, dirname + '/' + f)
-            else:
-                self.package.write(dirpath, os.path.basename(zippath))
-
-        zipfile = ZipFile(outputFile.path, 'w')
-        zipfile.add = zip_writer
-
-        return zipfile
 
 
     def _createEgg(self):

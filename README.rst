@@ -100,7 +100,7 @@ Currently produces::
 	   Size: 1.5 MB
 	   MD5: ac499d9d2faf11c5df0199559a949985
 	 - dist/PyAMF-0.6.zip
-	   Size: 5.2 MB
+	   Size: 1.4 MB
 	   MD5: 1c367882e965bab831babd4d43742a1d
 
   
@@ -181,7 +181,7 @@ Currently produces::
 	 - dist/PyAMF-0.6.tar.gz
 	   Size: 5.5 MB
 	 - dist/PyAMF-0.6.zip
-	   Size: 8.8 MB
+	   Size: 5.5 MB
 
   
   Builder ready.
