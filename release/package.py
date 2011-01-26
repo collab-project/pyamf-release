@@ -24,7 +24,6 @@ from release import Project
 from release import sizeof_fmt
 
 from twisted.python.filepath import FilePath
-from twisted.python.zippath import ZipArchive
 from twisted.python._release import runCommand, CommandFailed
 from twisted.python._release import DistributionBuilder as TwistedDistributionBuilder
 
@@ -170,6 +169,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
                 # download the file
                 original = urlopen(self.checksums_url)
             except HTTPError:
+                # ignore
                 return
 
             data = original.read().strip() + "\n"
@@ -208,7 +208,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
             runCommand(sphinx_build)
         except CommandFailed, e:
             logging.info("")
-            raise Exception("Error building main documentation with Sphinx:\n\n%s" % e[2])
+            print("Error building main documentation with Sphinx:\n\n%s" % e[2])
+            sys.exit(1)
 
         return html_output
 
@@ -222,7 +223,8 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             tarball = urlopen(self.theme_url).read()
         except HTTPError:
-            raise Exception("Error downloading theme from %s" % self.theme_url)
+            print("Error downloading theme from %s" % self.theme_url)
+            sys.exit(1)
 
         workPath = FilePath(mkdtemp())
         sourceFile = workPath.child("theme.tar.gz")
@@ -370,7 +372,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             tarball = TarFile.open(outputFile.path, mode='w:' + comp)
         except CompressionError:
-            logging.error("\t - Warning! Ignoring unsupported export filetype: ." + str(comp))
+            logging.warn("\t - Warning! Ignoring unsupported export filetype: ." + str(comp))
             return
 
         return tarball
@@ -408,7 +410,7 @@ class DistributionBuilder(TwistedDistributionBuilder):
         try:
             fd = open(fileName, "rb")
         except IOError:
-            logging.error("Unable to open the file:" + fileName)
+            logging.error("Unable to open the MD5 file:" + fileName)
             return
 
         content = fd.readlines()
@@ -465,10 +467,15 @@ class BuildScript(object):
 
         logging.info("Downloading source tarball...")
         sourceFile = self.workPath.child("source.tar.gz")
-        tarball = urlopen(checkout).read()
-        o = open(sourceFile.path , "w")
-        o.write(tarball)
-        o.close()
+        
+        try:
+            tarball = urlopen(checkout).read()
+            o = open(sourceFile.path , "w")
+            o.write(tarball)
+            o.close()
+        except HTTPError, e:
+            print("%s - URL: %s" % (e, checkout))
+            sys.exit(1)
 
         logging.info("Extracting tarball...")
         sourceDir = self.workPath.child("source")
